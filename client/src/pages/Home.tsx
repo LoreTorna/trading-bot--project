@@ -3,14 +3,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Play, Square, Settings, BarChart3, Zap, Github, RefreshCw, Download } from "lucide-react";
+import { AlertCircle, Play, Square, Settings, BarChart3, Zap, Github, RefreshCw, Download, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { PnLChart } from "@/components/PnLChart";
 import { TradeHistoryTable } from "@/components/TradeHistoryTable";
+import { useLocation } from "wouter";
 
 export default function Home() {
+  const [, navigate] = useLocation();
   const [setupProgress, setSetupProgress] = useState(0);
   const [backtestProgress, setBacktestProgress] = useState(0);
   const [botRunning, setBotRunning] = useState(false);
@@ -29,6 +31,7 @@ export default function Home() {
     setIsLoading(true);
     setSetupProgress(0);
     try {
+      toast.loading("⚙️ Setup in corso...");
       for (let i = 0; i <= 100; i += 10) {
         setSetupProgress(i);
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -46,6 +49,7 @@ export default function Home() {
   const handleStartBot = async () => {
     setIsLoading(true);
     try {
+      toast.loading("🚀 Avvio bot...");
       // Simula l'avvio del bot
       await new Promise(resolve => setTimeout(resolve, 1000));
       setBotRunning(true);
@@ -60,6 +64,7 @@ export default function Home() {
   const handleStopBot = async () => {
     setIsLoading(true);
     try {
+      toast.loading("⏹️ Arresto bot...");
       // Simula lo stop del bot
       await new Promise(resolve => setTimeout(resolve, 1000));
       setBotRunning(false);
@@ -75,6 +80,7 @@ export default function Home() {
     setIsLoading(true);
     setBacktestProgress(0);
     try {
+      toast.loading("📊 Backtesting in corso...");
       for (let i = 0; i <= 100; i += 10) {
         setBacktestProgress(i);
         await new Promise(resolve => setTimeout(resolve, 400));
@@ -106,7 +112,6 @@ export default function Home() {
     try {
       toast.loading("📥 Esportazione in corso...");
       await new Promise(resolve => setTimeout(resolve, 1000));
-      // Simula il download
       toast.success("✅ Trade esportati in CSV!");
     } catch (error) {
       toast.error("❌ Esportazione fallita!");
@@ -136,6 +141,10 @@ export default function Home() {
     }
   };
 
+  const handleViewDashboard = () => {
+    navigate("/dashboard");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto p-6 space-y-6">
@@ -145,9 +154,19 @@ export default function Home() {
             <h1 className="text-4xl font-bold">Trading Bot AI</h1>
             <p className="text-muted-foreground">Controllo automatico XAUUSD</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${botRunning ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></div>
-            <span className="text-sm font-medium">{botRunning ? "🟢 Attivo" : "🔴 Inattivo"}</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${botRunning ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></div>
+              <span className="text-sm font-medium">{botRunning ? "🟢 Attivo" : "🔴 Inattivo"}</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleViewDashboard}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
           </div>
         </div>
 
