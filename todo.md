@@ -74,3 +74,36 @@
 - [ ] Configure environment variables
 - [ ] Setup monitoring
 - [ ] Setup backups
+
+
+## Backend tRPC Integration (NEW)
+- [x] Creare router tRPC per bot control
+- [x] Implementare procedure: setup, start, stop, backtest
+- [x] Implementare procedure: getStatus, getMetrics, getTrades
+- [x] Implementare procedure: saveConfig, getConfig
+- [x] Implementare procedure: syncGithub
+- [ ] Collegare procedure ai comandi Python
+
+## Grafici Real-time (NEW)
+- [x] Installare Recharts
+- [x] Creare componente PerformanceChart
+- [x] Creare componente PnLChart
+- [x] Creare componente TradeHistoryTable
+- [x] Implementare data fetching per grafici
+- [ ] Aggiornamento dati ogni 5 secondi
+
+## WebSocket Integration (NEW)
+- [x] Configurare Socket.IO server
+- [x] Implementare event: bot-status
+- [x] Implementare event: metrics-update
+- [x] Implementare event: trade-executed
+- [x] Implementare event: backtest-progress
+- [x] Creare hook useWebSocket per client
+
+## Frontend Integration (NEW)
+- [x] Collegare bottoni Setup a tRPC.bot.setup
+- [x] Collegare bottoni Start/Stop a tRPC.bot.start/stop
+- [x] Collegare bottone Backtest a tRPC.bot.runBacktest
+- [x] Collegare bottone GitHub Sync a tRPC.bot.syncGithub
+- [x] Integrare grafici nella Home page
+- [x] Implementare auto-refresh con WebSocket

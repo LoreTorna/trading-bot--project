@@ -4,18 +4,21 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Play, Square, Settings, BarChart3, Zap, Github, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { PerformanceChart } from "@/components/PerformanceChart";
+import { PnLChart } from "@/components/PnLChart";
+import { TradeHistoryTable } from "@/components/TradeHistoryTable";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 export default function Home() {
-  const [botRunning, setBotRunning] = useState(false);
   const [setupProgress, setSetupProgress] = useState(0);
   const [backtestProgress, setBacktestProgress] = useState(0);
+  const { botStatus, metrics, lastTrade, connected, startBot, stopBot } = useWebSocket();
 
   const handleSetup = async () => {
     setSetupProgress(0);
     try {
-      // Simulate setup
       for (let i = 0; i <= 100; i += 10) {
         setSetupProgress(i);
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -28,17 +31,16 @@ export default function Home() {
 
   const handleStartBot = async () => {
     try {
-      setBotRunning(true);
+      startBot();
       toast.success("Bot avviato!");
     } catch (error) {
       toast.error("Errore avvio bot!");
-      setBotRunning(false);
     }
   };
 
   const handleStopBot = async () => {
     try {
-      setBotRunning(false);
+      stopBot();
       toast.success("Bot fermato!");
     } catch (error) {
       toast.error("Errore stop bot!");
@@ -76,10 +78,14 @@ export default function Home() {
             <h1 className="text-4xl font-bold">Trading Bot AI</h1>
             <p className="text-muted-foreground">Controllo automatico XAUUSD</p>
           </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`}></div>
+            <span className="text-sm">{connected ? "Connesso" : "Disconnesso"}</span>
+          </div>
         </div>
 
         {/* Status Alert */}
-        {botRunning ? (
+        {botStatus?.running ? (
           <Alert className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800">
             <Zap className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-green-800 dark:text-green-200">
@@ -118,23 +124,23 @@ export default function Home() {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Status:</span>
-                    <Badge variant={botRunning ? "default" : "secondary"}>
-                      {botRunning ? "In Esecuzione" : "Fermo"}
+                    <Badge variant={botStatus?.running ? "default" : "secondary"}>
+                      {botStatus?.running ? "In Esecuzione" : "Fermo"}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Uptime:</span>
-                    <span className="text-sm">2h 45m</span>
+                    <span className="text-sm">{botStatus?.uptime || "0h 0m"}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Trade Oggi:</span>
-                    <span className="text-sm font-bold">12</span>
+                    <span className="text-sm font-bold">{botStatus?.tradesCount || 0}</span>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       className="flex-1"
                       onClick={handleStartBot}
-                      disabled={botRunning}
+                      disabled={botStatus?.running}
                     >
                       <Play className="h-4 w-4 mr-2" />
                       Avvia
@@ -143,7 +149,7 @@ export default function Home() {
                       className="flex-1"
                       variant="destructive"
                       onClick={handleStopBot}
-                      disabled={!botRunning}
+                      disabled={!botStatus?.running}
                     >
                       <Square className="h-4 w-4 mr-2" />
                       Ferma
@@ -164,19 +170,19 @@ export default function Home() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Portfolio Value:</span>
                     <span className="text-sm font-bold text-green-600">
-                      $12,500.50
+                      ${metrics?.portfolioValue?.toFixed(2) || "12,500.50"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Total Return:</span>
                     <span className="text-sm font-bold text-blue-600">
-                      +25.50%
+                      +{metrics?.totalReturn?.toFixed(2) || "25.50"}%
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Win Rate:</span>
                     <span className="text-sm font-bold">
-                      58.5%
+                      {metrics?.winRate?.toFixed(1) || "58.5"}%
                     </span>
                   </div>
                   <Button className="w-full" variant="outline">
@@ -186,17 +192,10 @@ export default function Home() {
               </Card>
             </div>
 
-            {/* Performance Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Performance Ultimi 30 Giorni</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64 bg-slate-100 dark:bg-slate-800 rounded flex items-center justify-center">
-                  <p className="text-muted-foreground">Grafico performance</p>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Charts */}
+            <PerformanceChart />
+            <PnLChart />
+            <TradeHistoryTable />
           </TabsContent>
 
           {/* Setup Tab */}
@@ -229,48 +228,6 @@ export default function Home() {
                       className="bg-blue-600 h-2 rounded-full transition-all"
                       style={{ width: `${setupProgress}%` }}
                     ></div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-medium mb-2">✓ Verifica Python</h3>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Controlla che Python 3.11 sia installato
-                    </p>
-                    <Button variant="outline" className="w-full" size="sm">
-                      Verifica
-                    </Button>
-                  </div>
-
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-medium mb-2">✓ Installa Dipendenze</h3>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Installa tutte le librerie necessarie
-                    </p>
-                    <Button variant="outline" className="w-full" size="sm">
-                      Installa
-                    </Button>
-                  </div>
-
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-medium mb-2">✓ Configura .env</h3>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Imposta le credenziali API
-                    </p>
-                    <Button variant="outline" className="w-full" size="sm">
-                      Configura
-                    </Button>
-                  </div>
-
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-medium mb-2">✓ Crea Cartelle</h3>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Crea le cartelle necessarie
-                    </p>
-                    <Button variant="outline" className="w-full" size="sm">
-                      Crea
-                    </Button>
                   </div>
                 </div>
 
