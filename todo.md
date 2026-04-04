@@ -107,3 +107,30 @@
 - [x] Collegare bottone GitHub Sync a tRPC.bot.syncGithub
 - [x] Integrare grafici nella Home page
 - [x] Implementare auto-refresh con WebSocket
+
+
+## Database tRPC Procedures (NEW)
+- [x] Creare procedure tRPC: getMetrics
+- [x] Creare procedure tRPC: saveTrade
+- [x] Creare procedure tRPC: getTrades
+- [x] Creare procedure tRPC: getNotifications
+- [x] Creare procedure tRPC: getBotConfig
+- [x] Creare procedure tRPC: saveBotConfig
+- [x] Creare procedure tRPC: getBacktestResults
+- [x] Collegare procedure ai query helper del database
+
+## Export PDF/CSV (NEW)
+- [x] Installare librerie: pdfkit, csv-writer
+- [x] Creare servizio export PDF
+- [x] Creare servizio export CSV
+- [x] Implementare procedure tRPC: exportTradesCSV
+- [x] Implementare procedure tRPC: exportMetricsPDF
+- [ ] Aggiungere bottoni export nel frontend
+
+## Backtesting Avanzato (NEW)
+- [x] Creare servizio backtesting con Optuna
+- [x] Implementare ottimizzazione parametri
+- [x] Creare procedure tRPC: runBacktest
+- [x] Creare procedure tRPC: optimizeStrategy
+- [ ] Aggiungere visualizzazione risultati nel frontend
+- [ ] Implementare progress tracking real-time
