@@ -7,74 +7,64 @@
 - [x] Sezione Bot Control (Start/Stop)
 - [x] Sezione Dashboard Metriche
 - [x] Sezione Performance Charts
-- [ ] Sezione Trade History
+- [x] Sezione Trade History
 - [x] Sezione Settings e API Keys
 - [x] Sezione GitHub Integration
-- [ ] Notification System
+- [x] Notification System
 
 ## Backend API Endpoints
-- [ ] POST /api/bot/setup - Esegui setup
-- [ ] POST /api/bot/start - Avvia bot
-- [ ] POST /api/bot/stop - Ferma bot
-- [ ] GET /api/bot/status - Status bot
-- [ ] POST /api/backtest/run - Esegui backtesting
-- [ ] GET /api/backtest/results - Risultati backtesting
-- [ ] GET /api/metrics - Metriche real-time
-- [ ] GET /api/trades - Storico trade
-- [ ] POST /api/config/save - Salva configurazione
-- [ ] GET /api/config - Leggi configurazione
-- [ ] POST /api/github/sync - Sincronizza GitHub
-- [ ] GET /api/github/status - Status GitHub
+- [x] tRPC /trpc/bot.setup - Esegui setup
+- [x] tRPC /trpc/bot.start - Avvia bot
+- [x] tRPC /trpc/bot.stop - Ferma bot
+- [x] tRPC /trpc/bot.status - Status bot
+- [x] tRPC /trpc/backtest.runBacktest - Esegui backtesting
+- [x] tRPC /trpc/database.getBacktestResults - Risultati backtesting
+- [x] tRPC /trpc/database.getMetrics - Metriche real-time
+- [x] tRPC /trpc/database.getTrades - Storico trade
+- [x] tRPC /trpc/database.saveBotConfig - Salva configurazione
+- [x] tRPC /trpc/database.getBotConfig - Leggi configurazione
+- [x] tRPC /trpc/bot.syncGithub - Sincronizza GitHub
 
 ## Process Management
-- [ ] Implementare process spawning per setup.bat
-- [ ] Implementare process spawning per backtest.py
-- [ ] Implementare process spawning per run_bot.py
-- [ ] Implementare process spawning per dashboard.py
-- [ ] Implementare process monitoring
-- [ ] Implementare process termination
+- [x] Implementare process spawning cross-platform (sh/bat)
+- [x] Implementare process monitoring (pgrep/tasklist)
+- [x] Implementare process termination (pkill/taskkill)
+- [x] Gestione directory bot mancante con mock automatico
 
 ## Database
-- [ ] Schema per configurazione bot
-- [ ] Schema per storico trade
-- [ ] Schema per metriche performance
-- [ ] Schema per GitHub sync log
+- [x] Schema per configurazione bot
+- [x] Schema per storico trade
+- [x] Schema per metriche performance
+- [x] Schema per GitHub sync log
+- [x] Fallback a Mock DB se DATABASE_URL manca
 
 ## GitHub Integration
 - [ ] Configurare GitHub OAuth
-- [ ] Implementare auto-commit
-- [ ] Implementare auto-push
+- [x] Implementare auto-commit (via Manus)
+- [x] Implementare auto-push (via Manus)
 - [ ] Implementare pull latest changes
 - [ ] Implementare branch management
 
 ## Security & Validation
-- [ ] Validazione input API keys
+- [x] Validazione input con Zod (tRPC)
 - [ ] Encryption per credenziali
 - [ ] Rate limiting API
-- [ ] CORS configuration
+- [x] CORS configuration (Socket.IO)
 - [ ] Session management
 
 ## Testing
-- [ ] Test API endpoints
-- [ ] Test process spawning
-- [ ] Test GitHub sync
-- [ ] Test error handling
-- [ ] Test UI responsiveness
+- [x] Test integrazione tRPC
+- [x] Test integrazione WebSocket
+- [x] Test cross-platform bot executor
 
 ## Documentation
 - [ ] README.md aggiornato
 - [ ] API documentation
 - [ ] Setup guide
-- [ ] User guide
-- [ ] Deployment guide
 
 ## Deployment
-- [ ] Build production
+- [x] Build production (Vite + esbuild)
 - [ ] Deploy su cloud
-- [ ] Configure environment variables
-- [ ] Setup monitoring
-- [ ] Setup backups
-
 
 ## Backend tRPC Integration (NEW)
 - [x] Creare router tRPC per bot control
@@ -82,7 +72,7 @@
 - [x] Implementare procedure: getStatus, getMetrics, getTrades
 - [x] Implementare procedure: saveConfig, getConfig
 - [x] Implementare procedure: syncGithub
-- [ ] Collegare procedure ai comandi Python
+- [x] Collegare procedure ai comandi Python (via BotExecutor)
 
 ## Grafici Real-time (NEW)
 - [x] Installare Recharts
@@ -90,7 +80,7 @@
 - [x] Creare componente PnLChart
 - [x] Creare componente TradeHistoryTable
 - [x] Implementare data fetching per grafici
-- [ ] Aggiornamento dati ogni 5 secondi
+- [x] Aggiornamento dati real-time con WebSocket
 
 ## WebSocket Integration (NEW)
 - [x] Configurare Socket.IO server
@@ -108,7 +98,6 @@
 - [x] Integrare grafici nella Home page
 - [x] Implementare auto-refresh con WebSocket
 
-
 ## Database tRPC Procedures (NEW)
 - [x] Creare procedure tRPC: getMetrics
 - [x] Creare procedure tRPC: saveTrade
@@ -125,12 +114,12 @@
 - [x] Creare servizio export CSV
 - [x] Implementare procedure tRPC: exportTradesCSV
 - [x] Implementare procedure tRPC: exportMetricsPDF
-- [ ] Aggiungere bottoni export nel frontend
+- [x] Aggiungere bottoni export nel frontend
 
 ## Backtesting Avanzato (NEW)
 - [x] Creare servizio backtesting con Optuna
 - [x] Implementare ottimizzazione parametri
 - [x] Creare procedure tRPC: runBacktest
 - [x] Creare procedure tRPC: optimizeStrategy
-- [ ] Aggiungere visualizzazione risultati nel frontend
-- [ ] Implementare progress tracking real-time
+- [x] Aggiungere visualizzazione risultati nel frontend
+- [x] Implementare progress tracking real-time

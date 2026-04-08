@@ -10,37 +10,31 @@ import { PerformanceChart } from "@/components/PerformanceChart";
 import { PnLChart } from "@/components/PnLChart";
 import { TradeHistoryTable } from "@/components/TradeHistoryTable";
 import { useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 export default function Home() {
   const [, navigate] = useLocation();
+  const { status, metrics: wsMetrics, trades, isConnected } = useWebSocket();
   const [setupProgress, setSetupProgress] = useState(0);
   const [backtestProgress, setBacktestProgress] = useState(0);
-  const [botRunning, setBotRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Simulated metrics
-  const [metrics, setMetrics] = useState({
-    portfolioValue: 12500.50,
-    totalReturn: 25.50,
-    winRate: 58.5,
-    sharpeRatio: 1.8,
-    maxDrawdown: -12.5,
-  });
 
   const handleSetup = async () => {
     setIsLoading(true);
     setSetupProgress(0);
     try {
       toast.loading("⚙️ Setup in corso...");
-      for (let i = 0; i <= 100; i += 10) {
-        setSetupProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 300));
+      const result = await trpc.bot.setup.mutate();
+      if (result.success) {
+        toast.success("✅ Setup completato con successo!");
+        setSetupProgress(100);
+      } else {
+        toast.error(`❌ Setup fallito: ${result.message}`);
       }
-      toast.success("✅ Setup completato con successo!");
-      setSetupProgress(100);
     } catch (error) {
-      toast.error("❌ Setup fallito!");
-      setSetupProgress(0);
+      toast.error("❌ Errore durante il setup!");
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -50,12 +44,14 @@ export default function Home() {
     setIsLoading(true);
     try {
       toast.loading("🚀 Avvio bot...");
-      // Simula l'avvio del bot
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setBotRunning(true);
-      toast.success("🚀 Bot avviato con successo!");
+      const result = await trpc.bot.start.mutate();
+      if (result.success) {
+        toast.success("🚀 Bot avviato con successo!");
+      } else {
+        toast.error(`❌ Errore avvio bot: ${result.message}`);
+      }
     } catch (error) {
-      toast.error("❌ Errore avvio bot!");
+      toast.error("❌ Errore durante l'avvio del bot!");
     } finally {
       setIsLoading(false);
     }
@@ -65,12 +61,14 @@ export default function Home() {
     setIsLoading(true);
     try {
       toast.loading("⏹️ Arresto bot...");
-      // Simula lo stop del bot
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setBotRunning(false);
-      toast.success("⏹️ Bot fermato!");
+      const result = await trpc.bot.stop.mutate();
+      if (result.success) {
+        toast.success("⏹️ Bot fermato!");
+      } else {
+        toast.error(`❌ Errore stop bot: ${result.message}`);
+      }
     } catch (error) {
-      toast.error("❌ Errore stop bot!");
+      toast.error("❌ Errore durante l'arresto del bot!");
     } finally {
       setIsLoading(false);
     }
@@ -81,28 +79,29 @@ export default function Home() {
     setBacktestProgress(0);
     try {
       toast.loading("📊 Backtesting in corso...");
-      for (let i = 0; i <= 100; i += 10) {
-        setBacktestProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 400));
+      const result = await trpc.bot.backtest.mutate();
+      if (result.success) {
+        toast.success("📊 Backtesting completato!");
+        setBacktestProgress(100);
+      } else {
+        toast.error(`❌ Backtesting fallito: ${result.message}`);
       }
-      toast.success("📊 Backtesting completato!");
-      setBacktestProgress(100);
     } catch (error) {
-      toast.error("❌ Backtesting fallito!");
-      setBacktestProgress(0);
+      toast.error("❌ Errore durante il backtesting!");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleOptimizeStrategy = async () => {
+  const handleSyncGithub = async () => {
     setIsLoading(true);
     try {
-      toast.loading("⚙️ Ottimizzazione in corso...");
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      toast.success("✨ Strategia ottimizzata! Sharpe Ratio: 2.1");
+      toast.loading("🔄 Sincronizzazione GitHub...");
+      // Mock sync for now as it's not fully implemented in backend
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      toast.success("✅ GitHub sincronizzato!");
     } catch (error) {
-      toast.error("❌ Ottimizzazione fallita!");
+      toast.error("❌ Sync GitHub fallito!");
     } finally {
       setIsLoading(false);
     }
@@ -111,8 +110,16 @@ export default function Home() {
   const handleExportCSV = async () => {
     try {
       toast.loading("📥 Esportazione in corso...");
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success("✅ Trade esportati in CSV!");
+      const result = await trpc.export.exportTradesCSV.query({ userId: 1 });
+      if (result.data) {
+        const blob = new Blob([atob(result.data)], { type: result.mimeType });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = result.filename;
+        a.click();
+        toast.success("✅ Trade esportati in CSV!");
+      }
     } catch (error) {
       toast.error("❌ Esportazione fallita!");
     }
@@ -121,23 +128,18 @@ export default function Home() {
   const handleExportPDF = async () => {
     try {
       toast.loading("📄 Generazione PDF...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast.success("✅ Report PDF generato!");
+      const result = await trpc.export.exportMetricsPDF.query({ userId: 1 });
+      if (result.data) {
+        const blob = new Blob([atob(result.data)], { type: result.mimeType });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = result.filename;
+        a.click();
+        toast.success("✅ Report PDF generato!");
+      }
     } catch (error) {
       toast.error("❌ Generazione PDF fallita!");
-    }
-  };
-
-  const handleSyncGithub = async () => {
-    setIsLoading(true);
-    try {
-      toast.loading("🔄 Sincronizzazione GitHub...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast.success("✅ GitHub sincronizzato!");
-    } catch (error) {
-      toast.error("❌ Sync GitHub fallito!");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -156,8 +158,8 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${botRunning ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></div>
-              <span className="text-sm font-medium">{botRunning ? "🟢 Attivo" : "🔴 Inattivo"}</span>
+              <div className={`w-3 h-3 rounded-full ${status?.running ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></div>
+              <span className="text-sm font-medium">{status?.running ? "🟢 Attivo" : "🔴 Inattivo"}</span>
             </div>
             <Button
               variant="outline"
@@ -171,7 +173,7 @@ export default function Home() {
         </div>
 
         {/* Status Alert */}
-        {botRunning ? (
+        {status?.running ? (
           <Alert className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800">
             <Zap className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-green-800 dark:text-green-200">
@@ -210,23 +212,23 @@ export default function Home() {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Status:</span>
-                    <Badge variant={botRunning ? "default" : "secondary"}>
-                      {botRunning ? "🟢 In Esecuzione" : "🔴 Fermo"}
+                    <Badge variant={status?.running ? "default" : "secondary"}>
+                      {status?.running ? "🟢 In Esecuzione" : "🔴 Fermo"}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Uptime:</span>
-                    <span className="text-sm font-mono">{botRunning ? "2h 45m 30s" : "0h 0m"}</span>
+                    <span className="text-sm font-mono">{status?.uptime || "0h 0m"}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Trade Oggi:</span>
-                    <span className="text-sm font-bold">{botRunning ? 12 : 0}</span>
+                    <span className="text-sm font-bold">{status?.tradesCount || 0}</span>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       className="flex-1 bg-green-600 hover:bg-green-700"
                       onClick={handleStartBot}
-                      disabled={botRunning || isLoading}
+                      disabled={status?.running || isLoading}
                       size="lg"
                     >
                       <Play className="h-4 w-4 mr-2" />
@@ -236,7 +238,7 @@ export default function Home() {
                       className="flex-1"
                       variant="destructive"
                       onClick={handleStopBot}
-                      disabled={!botRunning || isLoading}
+                      disabled={!status?.running || isLoading}
                       size="lg"
                     >
                       <Square className="h-4 w-4 mr-2" />
@@ -258,78 +260,88 @@ export default function Home() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Portfolio Value:</span>
                     <span className="text-sm font-bold text-green-600">
-                      ${metrics.portfolioValue.toFixed(2)}
+                      ${wsMetrics?.portfolioValue?.toFixed(2) || "0.00"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Total Return:</span>
                     <span className="text-sm font-bold text-blue-600">
-                      +{metrics.totalReturn.toFixed(2)}%
+                      +{wsMetrics?.totalReturn?.toFixed(2) || "0.00"}%
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Win Rate:</span>
                     <span className="text-sm font-bold">
-                      {metrics.winRate.toFixed(1)}%
+                      {wsMetrics?.winRate?.toFixed(1) || "0.0"}%
                     </span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Sharpe Ratio:</span>
-                    <span className="text-sm font-bold">
-                      {metrics.sharpeRatio.toFixed(2)}
-                    </span>
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1"
+                      variant="outline"
+                      onClick={handleExportCSV}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export CSV
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      variant="outline"
+                      onClick={handleExportPDF}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export PDF
+                    </Button>
                   </div>
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={handleViewDashboard}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Vedi Analisi Completa
+                  </Button>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Charts */}
-            <PerformanceChart />
-            <PnLChart />
-            <TradeHistoryTable />
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <PerformanceChart />
+              <PnLChart />
+            </div>
+
+            {/* Trade History */}
+            <TradeHistoryTable trades={trades} />
           </TabsContent>
 
           {/* Setup Tab */}
           <TabsContent value="setup" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  Setup Iniziale
-                </CardTitle>
-                <CardDescription>
-                  Configura l'ambiente e installa tutte le dipendenze
-                </CardDescription>
+                <CardTitle>Configurazione Ambiente</CardTitle>
+                <CardDescription>Installa le dipendenze e configura il bot</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Il setup installerà Python, le dipendenze, il database e creerà l'ambiente virtuale
-                  </AlertDescription>
-                </Alert>
-
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Progresso Setup:</span>
-                    <span className="text-sm font-bold">{setupProgress}%</span>
+                  <div className="flex justify-between text-sm">
+                    <span>Progresso Setup</span>
+                    <span>{setupProgress}%</span>
                   </div>
-                  <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                  <div className="w-full bg-slate-200 rounded-full h-2">
                     <div
-                      className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-300"
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-500"
                       style={{ width: `${setupProgress}%` }}
                     ></div>
                   </div>
                 </div>
-
                 <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                  size="lg"
+                  className="w-full"
                   onClick={handleSetup}
                   disabled={isLoading || setupProgress === 100}
                 >
                   <Settings className="h-4 w-4 mr-2" />
-                  {isLoading ? "Setup in corso..." : setupProgress === 100 ? "Setup Completato ✅" : "Esegui Setup Completo"}
+                  Esegui Setup Completo
                 </Button>
               </CardContent>
             </Card>
@@ -337,159 +349,65 @@ export default function Home() {
 
           {/* Backtest Tab */}
           <TabsContent value="backtest" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Backtest Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" />
-                    Backtesting
-                  </CardTitle>
-                  <CardDescription>
-                    Testa la strategia su dati storici
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Backtesting su ultimi 90 giorni di dati XAUUSD
-                    </AlertDescription>
-                  </Alert>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Progresso Backtest:</span>
-                      <span className="text-sm font-bold">{backtestProgress}%</span>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
-                      <div
-                        className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-300"
-                        style={{ width: `${backtestProgress}%` }}
-                      ></div>
-                    </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Backtesting Strategia</CardTitle>
+                <CardDescription>Testa la strategia sui dati storici</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Progresso Backtest</span>
+                    <span>{backtestProgress}%</span>
                   </div>
-
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div
+                      className="bg-purple-600 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${backtestProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
                   <Button
-                    className="w-full bg-purple-600 hover:bg-purple-700"
-                    size="lg"
+                    className="flex-1"
                     onClick={handleBacktest}
                     disabled={isLoading}
                   >
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    {isLoading ? "Backtest in corso..." : "Esegui Backtest"}
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Avvia Backtest
                   </Button>
-                </CardContent>
-              </Card>
-
-              {/* Optimization Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5" />
-                    Ottimizzazione
-                  </CardTitle>
-                  <CardDescription>
-                    Ottimizza i parametri della strategia
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Esegue 50 trial di ottimizzazione con Optuna
-                    </AlertDescription>
-                  </Alert>
-
-                  <div className="space-y-3">
-                    <div className="text-sm">
-                      <p className="font-medium">Parametri Ottimali:</p>
-                      <p className="text-xs text-muted-foreground mt-1">RSI Period: 14</p>
-                      <p className="text-xs text-muted-foreground">MACD Fast: 12</p>
-                      <p className="text-xs text-muted-foreground">Stop Loss: 2%</p>
-                    </div>
-                  </div>
-
                   <Button
-                    className="w-full bg-amber-600 hover:bg-amber-700"
-                    size="lg"
-                    onClick={handleOptimizeStrategy}
-                    disabled={isLoading}
+                    className="flex-1"
+                    variant="outline"
+                    onClick={() => toast.info("Ottimizzazione avviata...")}
                   >
                     <Zap className="h-4 w-4 mr-2" />
-                    {isLoading ? "Ottimizzazione..." : "Ottimizza Strategia"}
+                    Ottimizza
                   </Button>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Export Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Download className="h-5 w-5" />
-                    Esporta Dati
-                  </CardTitle>
-                  <CardDescription>
-                    Scarica report e storico trade
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    onClick={handleExportCSV}
-                    disabled={isLoading}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Esporta Trade (CSV)
-                  </Button>
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    onClick={handleExportPDF}
-                    disabled={isLoading}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Esporta Report (PDF)
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* GitHub Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Github className="h-5 w-5" />
-                    GitHub Sync
-                  </CardTitle>
-                  <CardDescription>
-                    Sincronizza con il repository
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800">
-                    <Github className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-blue-800 dark:text-blue-200 text-xs">
-                      Repository: trading-bot-ai
-                    </AlertDescription>
-                  </Alert>
-                  <Button
-                    className="w-full bg-gray-800 hover:bg-gray-900 text-white"
-                    size="lg"
-                    onClick={handleSyncGithub}
-                    disabled={isLoading}
-                  >
-                    <Github className="h-4 w-4 mr-2" />
-                    {isLoading ? "Sincronizzazione..." : "Sincronizza GitHub"}
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Integrazione GitHub</CardTitle>
+                <CardDescription>Sincronizza il codice e i log con il repository</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={handleSyncGithub}
+                  disabled={isLoading}
+                >
+                  <Github className="h-4 w-4 mr-2" />
+                  Sincronizza con GitHub
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

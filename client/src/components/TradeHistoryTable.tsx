@@ -1,7 +1,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-const trades = [
+interface Trade {
+  id: number | string;
+  symbol: string;
+  type: string;
+  price: number;
+  quantity: number;
+  pnl: number;
+  time: string | Date;
+  status: string;
+}
+
+interface TradeHistoryTableProps {
+  trades?: Trade[];
+}
+
+const defaultTrades: Trade[] = [
   {
     id: 1,
     symbol: "XAUUSD",
@@ -54,7 +69,9 @@ const trades = [
   },
 ];
 
-export function TradeHistoryTable() {
+export function TradeHistoryTable({ trades = defaultTrades }: TradeHistoryTableProps) {
+  const displayTrades = trades.length > 0 ? trades : defaultTrades;
+
   return (
     <Card>
       <CardHeader>
@@ -76,7 +93,7 @@ export function TradeHistoryTable() {
               </tr>
             </thead>
             <tbody>
-              {trades.map((trade) => (
+              {displayTrades.map((trade) => (
                 <tr key={trade.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-800">
                   <td className="py-2 px-2">{trade.id}</td>
                   <td className="py-2 px-2 font-medium">{trade.symbol}</td>
@@ -85,14 +102,16 @@ export function TradeHistoryTable() {
                       {trade.type}
                     </Badge>
                   </td>
-                  <td className="py-2 px-2">${trade.price.toFixed(2)}</td>
+                  <td className="py-2 px-2">${Number(trade.price).toFixed(2)}</td>
                   <td className="py-2 px-2">{trade.quantity}</td>
-                  <td className={`py-2 px-2 font-medium ${trade.pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {trade.pnl >= 0 ? "+" : ""}{trade.pnl.toFixed(2)}
+                  <td className={`py-2 px-2 font-medium ${Number(trade.pnl) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {Number(trade.pnl) >= 0 ? "+" : ""}{Number(trade.pnl).toFixed(2)}
                   </td>
-                  <td className="py-2 px-2 text-xs text-muted-foreground">{trade.time}</td>
+                  <td className="py-2 px-2 text-xs text-muted-foreground">
+                    {trade.time instanceof Date ? trade.time.toLocaleTimeString() : trade.time}
+                  </td>
                   <td className="py-2 px-2">
-                    <Badge variant={trade.status === "Closed" ? "outline" : "default"}>
+                    <Badge variant={trade.status === "Closed" || trade.status === "closed" ? "outline" : "default"}>
                       {trade.status}
                     </Badge>
                   </td>
