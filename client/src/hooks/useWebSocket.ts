@@ -21,22 +21,23 @@ interface Metrics {
 }
 
 interface Trade {
-  id: number;
+  id: number | string;
   symbol: string;
-  type: "BUY" | "SELL";
+  type: string;
   price: number;
   quantity: number;
   pnl: number;
-  timestamp: string;
+  time: string | Date;
+  status: string;
 }
 
 export function useWebSocket() {
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
+  const [status, setStatus] = useState<BotStatus | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [lastTrade, setLastTrade] = useState<Trade | null>(null);
+  const [trades, setTrades] = useState<Trade[]>([]);
   const [backtestProgress, setBacktestProgress] = useState(0);
-  const [connected, setConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     const newSocket = io(window.location.origin, {
@@ -48,17 +49,17 @@ export function useWebSocket() {
 
     newSocket.on("connect", () => {
       console.log("[WebSocket] Connected");
-      setConnected(true);
+      setIsConnected(true);
     });
 
     newSocket.on("disconnect", () => {
       console.log("[WebSocket] Disconnected");
-      setConnected(false);
+      setIsConnected(false);
     });
 
-    newSocket.on("bot-status", (status: BotStatus) => {
-      console.log("[WebSocket] Bot status:", status);
-      setBotStatus(status);
+    newSocket.on("bot-status", (statusData: BotStatus) => {
+      console.log("[WebSocket] Bot status:", statusData);
+      setStatus(statusData);
     });
 
     newSocket.on("metrics-update", (metricsData: Metrics) => {
@@ -68,7 +69,7 @@ export function useWebSocket() {
 
     newSocket.on("trade-executed", (trade: Trade) => {
       console.log("[WebSocket] Trade executed:", trade);
-      setLastTrade(trade);
+      setTrades((prev) => [trade, ...prev].slice(0, 50));
     });
 
     newSocket.on("backtest-progress", (progress: number) => {
@@ -97,10 +98,10 @@ export function useWebSocket() {
 
   return {
     socket,
-    connected,
-    botStatus,
+    isConnected,
+    status,
     metrics,
-    lastTrade,
+    trades,
     backtestProgress,
     startBot,
     stopBot,
