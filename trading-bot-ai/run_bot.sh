@@ -1,0 +1,3 @@
+#!/bin/bash
+echo Mock bot running...
+sleep 10
