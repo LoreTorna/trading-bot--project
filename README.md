@@ -4,14 +4,27 @@ Questo progetto è un sistema completo per la gestione di un trading bot, con un
 
 ## 🚀 Avvio Rapido
 
-Per far partire tutto il progetto (Sito + Bot + Server) con un unico comando, esegui:
+Per far partire tutto il progetto (Sito + Bot + Server) con un unico comando, esegui il file corrispondente al tuo sistema operativo:
 
+### 🪟 Windows
+Fai doppio clic su:
+```text
+start.bat
+```
+
+### 🍎 macOS / 🐧 Linux
+Apri il terminale nella cartella del progetto ed esegui:
+```bash
+./start.sh
+```
+*(Se necessario, dai i permessi con `chmod +x start.sh`)*
+
+### 🛠️ Metodo Universale (Node.js)
+Se hai Node.js installato, puoi sempre usare:
 ```bash
 node start.js
 ```
-
 Oppure tramite pnpm:
-
 ```bash
 pnpm run start:all
 ```
