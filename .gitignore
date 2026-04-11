@@ -107,3 +107,10 @@ temp/
 
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
+
+# Deployment and server logs
+server.log
+.manus-logs/
+
+# Bot directory (if local)
+trading-bot-ai/

@@ -39,11 +39,12 @@ async function startServer() {
     res.sendFile(indexPath);
   });
 
-  const port = process.env.PORT || 3000;
+  const port = Number(process.env.PORT) || 3000;
+  const host = "0.0.0.0";
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
-    console.log(`tRPC endpoint: http://localhost:${port}/trpc`);
+  server.listen(port, host, () => {
+    console.log(`Server running on http://${host}:${port}/`);
+    console.log(`tRPC endpoint: http://${host}:${port}/trpc`);
   });
 }
 
