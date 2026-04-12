@@ -123,3 +123,13 @@
 - [x] Creare procedure tRPC: optimizeStrategy
 - [x] Aggiungere visualizzazione risultati nel frontend
 - [x] Implementare progress tracking real-time
+
+
+## Bug Fixing - Percorsi File e Esecuzione
+- [ ] Configurare il percorso corretto del repository: C:\Users\loren\OneDrive\Desktop\TRADE\newbotMANUS\trading-bot--project-main
+- [ ] Risolvere errori durante l'avvio del bot
+- [ ] Risolvere errori durante la configurazione
+- [ ] Risolvere errori durante il backtesting
+- [ ] Cercare i file corretti nel percorso del repository
+- [ ] Eseguire i veri script Python e batch dal percorso corretto
+- [ ] Testare completamente tutte le funzionalità

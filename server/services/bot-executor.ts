@@ -1,200 +1,355 @@
-import { spawn, exec } from "child_process";
+import { exec } from "child_process";
 import { promisify } from "util";
 import path from "path";
-import { fileURLToPath } from "url";
 import fs from "fs";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { PATHS_CONFIG, fileExists, getPythonCommand, getShellCommand } from "../config/paths.config";
 
 const execAsync = promisify(exec);
-
-// Path to the trading bot scripts
-const BOT_PATH = path.resolve(__dirname, "../../trading-bot-ai");
-
-// Ensure BOT_PATH exists for mock purposes if it doesn't
-if (!fs.existsSync(BOT_PATH)) {
-  console.log(`[BotExecutor] Creating mock bot directory at ${BOT_PATH}`);
-  fs.mkdirSync(BOT_PATH, { recursive: true });
-  
-  // Create mock scripts
-  const isWindows = process.platform === "win32";
-  const setupScript = isWindows ? "setup.bat" : "setup.sh";
-  const runScript = isWindows ? "run_bot.bat" : "run_bot.sh";
-  const backtestScript = isWindows ? "backtest.bat" : "backtest.sh";
-
-  if (isWindows) {
-    fs.writeFileSync(path.join(BOT_PATH, setupScript), "@echo off\necho Mock setup complete.");
-    fs.writeFileSync(path.join(BOT_PATH, runScript), "@echo off\necho Mock bot running...\nping 127.0.0.1 -n 10 > nul");
-    fs.writeFileSync(path.join(BOT_PATH, backtestScript), "@echo off\necho Mock backtest complete.");
-  } else {
-    fs.writeFileSync(path.join(BOT_PATH, setupScript), "#!/bin/bash\necho Mock setup complete.");
-    fs.writeFileSync(path.join(BOT_PATH, runScript), "#!/bin/bash\necho Mock bot running...\nsleep 10");
-    fs.writeFileSync(path.join(BOT_PATH, backtestScript), "#!/bin/bash\necho Mock backtest complete.");
-    
-    // Make scripts executable
-    fs.chmodSync(path.join(BOT_PATH, setupScript), "755");
-    fs.chmodSync(path.join(BOT_PATH, runScript), "755");
-    fs.chmodSync(path.join(BOT_PATH, backtestScript), "755");
-  }
-}
 
 export interface BotExecutionResult {
   success: boolean;
   message: string;
   output?: string;
   error?: string;
+  executedPath?: string;
 }
 
-async function runScript(scriptName: string, args: string[] = []): Promise<BotExecutionResult> {
-  const isWindows = process.platform === "win32";
-  const shell = isWindows ? "cmd.exe" : "bash";
-  const shellArgs = isWindows ? ["/c", scriptName, ...args] : [scriptName, ...args];
+/**
+ * Bot Executor Service
+ * Esegue gli script Python e batch del bot di trading
+ * Supporta sia Windows che Linux/Mac
+ */
 
-  return new Promise((resolve) => {
-    const process = spawn(shell, shellArgs, {
-      cwd: BOT_PATH,
-      stdio: "pipe",
-    });
+class BotExecutor {
+  private isWindows = process.platform === "win32";
+  private repositoryPath = PATHS_CONFIG.repositoryRoot;
 
-    let output = "";
-    let error = "";
+  /**
+   * Esegui lo script setup
+   */
+  async runSetup(): Promise<BotExecutionResult> {
+    try {
+      console.log(`[BotExecutor] Esecuzione setup dal repository: ${this.repositoryPath}`);
 
-    process.stdout?.on("data", (data) => {
-      output += data.toString();
-      console.log(`[BotExecutor] ${data}`);
-    });
-
-    process.stderr?.on("data", (data) => {
-      error += data.toString();
-      console.error(`[BotExecutor Error] ${data}`);
-    });
-
-    process.on("close", (code) => {
-      if (code === 0) {
-        resolve({
-          success: true,
-          message: `${scriptName} completato con successo`,
-          output,
-        });
+      // Prova a eseguire il file batch/shell
+      if (this.isWindows) {
+        const setupBat = PATHS_CONFIG.batch.setup;
+        if (fileExists(setupBat)) {
+          console.log(`[BotExecutor] Trovato: ${setupBat}`);
+          const { stdout, stderr } = await execAsync(`"${setupBat}"`, {
+            cwd: this.repositoryPath,
+            timeout: 300000, // 5 minuti
+          });
+          return {
+            success: true,
+            message: "✅ Setup completato con successo",
+            output: stdout,
+            executedPath: setupBat,
+          };
+        }
       } else {
-        resolve({
-          success: false,
-          message: `${scriptName} fallito con codice ${code}`,
-          error,
-        });
+        const setupSh = PATHS_CONFIG.shell.setup;
+        if (fileExists(setupSh)) {
+          console.log(`[BotExecutor] Trovato: ${setupSh}`);
+          const { stdout, stderr } = await execAsync(`bash "${setupSh}"`, {
+            cwd: this.repositoryPath,
+            timeout: 300000,
+          });
+          return {
+            success: true,
+            message: "✅ Setup completato con successo",
+            output: stdout,
+            executedPath: setupSh,
+          };
+        }
       }
-    });
-  });
-}
 
-export async function runSetup(): Promise<BotExecutionResult> {
-  const isWindows = process.platform === "win32";
-  const script = isWindows ? "setup.bat" : "./setup.sh";
-  return runScript(script);
-}
+      // Se il file batch/shell non esiste, prova Python
+      const pythonSetup = PATHS_CONFIG.python.setup;
+      if (fileExists(pythonSetup)) {
+        console.log(`[BotExecutor] Trovato: ${pythonSetup}`);
+        const pythonCmd = getPythonCommand();
+        const { stdout, stderr } = await execAsync(`${pythonCmd} "${pythonSetup}"`, {
+          cwd: this.repositoryPath,
+          timeout: 300000,
+        });
+        return {
+          success: true,
+          message: "✅ Setup completato con successo",
+          output: stdout,
+          executedPath: pythonSetup,
+        };
+      }
 
-export async function startBot(): Promise<BotExecutionResult> {
-  const isWindows = process.platform === "win32";
-  const script = isWindows ? "run_bot.bat" : "./run_bot.sh";
-  
-  try {
-    const shell = isWindows ? "cmd.exe" : "bash";
-    const shellArgs = isWindows ? ["/c", script] : [script];
-
-    const process = spawn(shell, shellArgs, {
-      cwd: BOT_PATH,
-      stdio: "pipe",
-      detached: true,
-    });
-
-    let output = "";
-    process.stdout?.on("data", (data) => {
-      output += data.toString();
-    });
-
-    // Don't wait for completion
-    setTimeout(() => {}, 2000);
-    process.unref();
-
-    return {
-      success: true,
-      message: "Bot avviato con successo",
-      output,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: "Errore durante l'avvio del bot",
-      error: String(error),
-    };
-  }
-}
-
-export async function stopBot(): Promise<BotExecutionResult> {
-  try {
-    const isWindows = process.platform === "win32";
-    if (isWindows) {
-      await execAsync("taskkill /F /IM python.exe /T 2>nul || true");
-    } else {
-      await execAsync("pkill -f python3 || true");
+      return {
+        success: false,
+        message: `❌ File setup non trovato in ${this.repositoryPath}`,
+        error: `Cercato: ${PATHS_CONFIG.batch.setup} o ${PATHS_CONFIG.python.setup}`,
+      };
+    } catch (error: any) {
+      console.error("[BotExecutor] Errore setup:", error);
+      return {
+        success: false,
+        message: "❌ Errore durante l'esecuzione del setup",
+        error: error.message,
+      };
     }
-    
-    return {
-      success: true,
-      message: "Bot fermato con successo",
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: "Errore durante lo stop del bot",
-      error: String(error),
-    };
   }
-}
 
-export async function runBacktest(): Promise<BotExecutionResult> {
-  const isWindows = process.platform === "win32";
-  const script = isWindows ? "backtest.bat" : "./backtest.sh";
-  return runScript(script);
-}
+  /**
+   * Avvia il bot di trading
+   */
+  async startBot(): Promise<BotExecutionResult> {
+    try {
+      console.log(`[BotExecutor] Avvio bot dal repository: ${this.repositoryPath}`);
 
-export async function checkBotStatus(): Promise<{
-  running: boolean;
-  uptime: string;
-  tradesCount: number;
-  lastTrade?: { symbol: string; type: string; price: number; time: Date };
-}> {
-  try {
-    const isWindows = process.platform === "win32";
-    let running = false;
+      // Prova a eseguire il file batch/shell
+      if (this.isWindows) {
+        const runBotBat = PATHS_CONFIG.batch.runBot;
+        if (fileExists(runBotBat)) {
+          console.log(`[BotExecutor] Trovato: ${runBotBat}`);
+          const { stdout, stderr } = await execAsync(`"${runBotBat}"`, {
+            cwd: this.repositoryPath,
+            timeout: 600000, // 10 minuti
+          });
+          return {
+            success: true,
+            message: "✅ Bot avviato con successo",
+            output: stdout,
+            executedPath: runBotBat,
+          };
+        }
+      } else {
+        const runBotSh = PATHS_CONFIG.shell.runBot;
+        if (fileExists(runBotSh)) {
+          console.log(`[BotExecutor] Trovato: ${runBotSh}`);
+          const { stdout, stderr } = await execAsync(`bash "${runBotSh}"`, {
+            cwd: this.repositoryPath,
+            timeout: 600000,
+          });
+          return {
+            success: true,
+            message: "✅ Bot avviato con successo",
+            output: stdout,
+            executedPath: runBotSh,
+          };
+        }
+      }
 
-    if (isWindows) {
-      const { stdout } = await execAsync("tasklist | find /I \"python.exe\"");
-      running = stdout.includes("python.exe");
-    } else {
-      const { stdout } = await execAsync("pgrep -f python3 || echo \"\"");
-      running = stdout.trim() !== "";
+      // Se il file batch/shell non esiste, prova Python
+      const pythonRunBot = PATHS_CONFIG.python.runBot;
+      if (fileExists(pythonRunBot)) {
+        console.log(`[BotExecutor] Trovato: ${pythonRunBot}`);
+        const pythonCmd = getPythonCommand();
+        const { stdout, stderr } = await execAsync(`${pythonCmd} "${pythonRunBot}"`, {
+          cwd: this.repositoryPath,
+          timeout: 600000,
+        });
+        return {
+          success: true,
+          message: "✅ Bot avviato con successo",
+          output: stdout,
+          executedPath: pythonRunBot,
+        };
+      }
+
+      return {
+        success: false,
+        message: `❌ File bot non trovato in ${this.repositoryPath}`,
+        error: `Cercato: ${PATHS_CONFIG.batch.runBot} o ${PATHS_CONFIG.python.runBot}`,
+      };
+    } catch (error: any) {
+      console.error("[BotExecutor] Errore avvio bot:", error);
+      return {
+        success: false,
+        message: "❌ Errore durante l'avvio del bot",
+        error: error.message,
+      };
     }
+  }
 
-    return {
-      running,
-      uptime: running ? "2h 45m 30s" : "0h 0m",
-      tradesCount: running ? Math.floor(Math.random() * 20) : 0,
-      lastTrade: running
-        ? {
-            symbol: "XAUUSD",
-            type: "BUY",
-            price: 2450.50,
-            time: new Date(),
-          }
-        : undefined,
-    };
-  } catch (error) {
-    return {
-      running: false,
-      uptime: "0h 0m",
-      tradesCount: 0,
-    };
+  /**
+   * Esegui il backtesting
+   */
+  async runBacktest(): Promise<BotExecutionResult> {
+    try {
+      console.log(`[BotExecutor] Esecuzione backtesting dal repository: ${this.repositoryPath}`);
+
+      // Prova a eseguire il file batch/shell
+      if (this.isWindows) {
+        const backtestBat = PATHS_CONFIG.batch.backtest;
+        if (fileExists(backtestBat)) {
+          console.log(`[BotExecutor] Trovato: ${backtestBat}`);
+          const { stdout, stderr } = await execAsync(`"${backtestBat}"`, {
+            cwd: this.repositoryPath,
+            timeout: 600000, // 10 minuti
+          });
+          return {
+            success: true,
+            message: "✅ Backtesting completato con successo",
+            output: stdout,
+            executedPath: backtestBat,
+          };
+        }
+      } else {
+        const backtestSh = PATHS_CONFIG.shell.backtest;
+        if (fileExists(backtestSh)) {
+          console.log(`[BotExecutor] Trovato: ${backtestSh}`);
+          const { stdout, stderr } = await execAsync(`bash "${backtestSh}"`, {
+            cwd: this.repositoryPath,
+            timeout: 600000,
+          });
+          return {
+            success: true,
+            message: "✅ Backtesting completato con successo",
+            output: stdout,
+            executedPath: backtestSh,
+          };
+        }
+      }
+
+      // Se il file batch/shell non esiste, prova Python
+      const pythonBacktest = PATHS_CONFIG.python.backtest;
+      if (fileExists(pythonBacktest)) {
+        console.log(`[BotExecutor] Trovato: ${pythonBacktest}`);
+        const pythonCmd = getPythonCommand();
+        const { stdout, stderr } = await execAsync(`${pythonCmd} "${pythonBacktest}"`, {
+          cwd: this.repositoryPath,
+          timeout: 600000,
+        });
+        return {
+          success: true,
+          message: "✅ Backtesting completato con successo",
+          output: stdout,
+          executedPath: pythonBacktest,
+        };
+      }
+
+      return {
+        success: false,
+        message: `❌ File backtesting non trovato in ${this.repositoryPath}`,
+        error: `Cercato: ${PATHS_CONFIG.batch.backtest} o ${PATHS_CONFIG.python.backtest}`,
+      };
+    } catch (error: any) {
+      console.error("[BotExecutor] Errore backtesting:", error);
+      return {
+        success: false,
+        message: "❌ Errore durante l'esecuzione del backtesting",
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Avvia la dashboard
+   */
+  async startDashboard(): Promise<BotExecutionResult> {
+    try {
+      console.log(`[BotExecutor] Avvio dashboard dal repository: ${this.repositoryPath}`);
+
+      // Prova a eseguire il file batch/shell
+      if (this.isWindows) {
+        const dashboardBat = PATHS_CONFIG.batch.dashboard;
+        if (fileExists(dashboardBat)) {
+          console.log(`[BotExecutor] Trovato: ${dashboardBat}`);
+          const { stdout, stderr } = await execAsync(`"${dashboardBat}"`, {
+            cwd: this.repositoryPath,
+            timeout: 300000,
+          });
+          return {
+            success: true,
+            message: "✅ Dashboard avviata con successo",
+            output: stdout,
+            executedPath: dashboardBat,
+          };
+        }
+      } else {
+        const dashboardSh = PATHS_CONFIG.shell.dashboard;
+        if (fileExists(dashboardSh)) {
+          console.log(`[BotExecutor] Trovato: ${dashboardSh}`);
+          const { stdout, stderr } = await execAsync(`bash "${dashboardSh}"`, {
+            cwd: this.repositoryPath,
+            timeout: 300000,
+          });
+          return {
+            success: true,
+            message: "✅ Dashboard avviata con successo",
+            output: stdout,
+            executedPath: dashboardSh,
+          };
+        }
+      }
+
+      // Se il file batch/shell non esiste, prova Python
+      const pythonDashboard = PATHS_CONFIG.python.dashboard;
+      if (fileExists(pythonDashboard)) {
+        console.log(`[BotExecutor] Trovato: ${pythonDashboard}`);
+        const pythonCmd = getPythonCommand();
+        const { stdout, stderr } = await execAsync(`${pythonCmd} "${pythonDashboard}"`, {
+          cwd: this.repositoryPath,
+          timeout: 300000,
+        });
+        return {
+          success: true,
+          message: "✅ Dashboard avviata con successo",
+          output: stdout,
+          executedPath: pythonDashboard,
+        };
+      }
+
+      return {
+        success: false,
+        message: `❌ File dashboard non trovato in ${this.repositoryPath}`,
+        error: `Cercato: ${PATHS_CONFIG.batch.dashboard} o ${PATHS_CONFIG.python.dashboard}`,
+      };
+    } catch (error: any) {
+      console.error("[BotExecutor] Errore dashboard:", error);
+      return {
+        success: false,
+        message: "❌ Errore durante l'avvio della dashboard",
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Ottieni il percorso del repository
+   */
+  getRepositoryPath(): string {
+    return this.repositoryPath;
+  }
+
+  /**
+   * Verifica se il repository esiste
+   */
+  repositoryExists(): boolean {
+    return fs.existsSync(this.repositoryPath);
+  }
+
+  /**
+   * Ottieni la lista dei file nel repository
+   */
+  getRepositoryFiles(): string[] {
+    try {
+      if (!this.repositoryExists()) {
+        return [];
+      }
+      return fs.readdirSync(this.repositoryPath);
+    } catch (error) {
+      console.error("[BotExecutor] Errore lettura repository:", error);
+      return [];
+    }
   }
 }
+
+// Singleton instance
+let executorInstance: BotExecutor | null = null;
+
+export function getBotExecutor(): BotExecutor {
+  if (!executorInstance) {
+    executorInstance = new BotExecutor();
+  }
+  return executorInstance;
+}
+
+export default BotExecutor;

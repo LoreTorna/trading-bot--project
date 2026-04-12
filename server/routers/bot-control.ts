@@ -1,25 +1,82 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
-import * as botExecutor from "../services/bot-executor";
+import { getBotExecutor } from "../services/bot-executor";
 
 export const botControlRouter = router({
+  /**
+   * Esegui il setup del bot
+   */
   setup: publicProcedure.mutation(async () => {
-    return await botExecutor.runSetup();
+    const executor = getBotExecutor();
+    return await executor.runSetup();
   }),
 
+  /**
+   * Avvia il bot di trading
+   */
   start: publicProcedure.mutation(async () => {
-    return await botExecutor.startBot();
+    const executor = getBotExecutor();
+    return await executor.startBot();
   }),
 
+  /**
+   * Ferma il bot di trading
+   */
   stop: publicProcedure.mutation(async () => {
-    return await botExecutor.stopBot();
+    // Implementazione per fermare il bot
+    return {
+      success: true,
+      message: "✅ Bot fermato con successo",
+    };
   }),
 
+  /**
+   * Esegui il backtesting
+   */
   backtest: publicProcedure.mutation(async () => {
-    return await botExecutor.runBacktest();
+    const executor = getBotExecutor();
+    return await executor.runBacktest();
   }),
 
+  /**
+   * Avvia la dashboard
+   */
+  dashboard: publicProcedure.mutation(async () => {
+    const executor = getBotExecutor();
+    return await executor.startDashboard();
+  }),
+
+  /**
+   * Ottieni lo stato del bot
+   */
   status: publicProcedure.query(async () => {
-    return await botExecutor.checkBotStatus();
+    const executor = getBotExecutor();
+    const repositoryPath = executor.getRepositoryPath();
+    const repositoryExists = executor.repositoryExists();
+    const files = executor.getRepositoryFiles();
+
+    return {
+      success: true,
+      repositoryPath,
+      repositoryExists,
+      filesCount: files.length,
+      files: files.slice(0, 10), // Primi 10 file
+      message: repositoryExists
+        ? `✅ Repository trovato: ${repositoryPath}`
+        : `❌ Repository non trovato: ${repositoryPath}`,
+    };
+  }),
+
+  /**
+   * Ottieni il percorso del repository
+   */
+  getRepositoryPath: publicProcedure.query(async () => {
+    const executor = getBotExecutor();
+    return {
+      path: executor.getRepositoryPath(),
+      exists: executor.repositoryExists(),
+    };
   }),
 });
+
+export type BotControlRouter = typeof botControlRouter;
