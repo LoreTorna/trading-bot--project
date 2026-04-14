@@ -71,7 +71,11 @@ async function main() {
 
     // 2. Installazione dipendenze
     console.log('\n\x1b[34m[1/3] Installazione dipendenze...\x1b[0m');
-    await runCommand(pkgManager, ['install'], { cwd: PROJECT_ROOT });
+    const installArgs = ['install'];
+    if (pkgManager === 'npm') {
+      installArgs.push('--legacy-peer-deps');
+    }
+    await runCommand(pkgManager, installArgs, { cwd: PROJECT_ROOT });
 
     // 3. Build del progetto
     console.log('\n\x1b[34m[2/3] Compilazione Frontend e Backend...\x1b[0m');
