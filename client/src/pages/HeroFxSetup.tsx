@@ -2,259 +2,207 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle, XCircle, Zap } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Server, Shield, Activity, Clock, Zap, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export default function HeroFxSetup() {
-  const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [accountInfo, setAccountInfo] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleConnect = async () => {
-    setIsConnecting(true);
+    setIsLoading(true);
     try {
-      toast.loading("🔗 Connessione a HeroFx in corso...");
-
-      // Simula la connessione (in produzione userebbe tRPC)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Dati simulati dell'account
-      const mockAccountInfo = {
-        login: 923721,
-        balance: 10000,
-        equity: 10250.5,
-        margin: 500,
-        freeMargin: 9750.5,
-        marginLevel: 2050,
-        openPositions: 0,
-        totalProfit: 250.5,
-      };
-
-      setAccountInfo(mockAccountInfo);
+      toast.loading("Connessione a HeroFx-Trade...");
+      // Simula connessione (in produzione userebbe trpc.herofx.connect)
+      await new Promise(resolve => setTimeout(resolve, 1500));
       setIsConnected(true);
-      toast.success("✅ Connesso a HeroFx con successo!");
+      toast.success("✅ Connesso con successo all'account 923721!");
     } catch (error) {
-      toast.error("❌ Errore di connessione a HeroFx");
+      toast.error("❌ Errore di connessione!");
     } finally {
-      setIsConnecting(false);
+      setIsLoading(false);
     }
   };
 
   const handleDisconnect = async () => {
-    setIsConnecting(true);
+    setIsLoading(true);
     try {
-      toast.loading("🔌 Disconnessione...");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      toast.loading("Disconnessione...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
       setIsConnected(false);
-      setAccountInfo(null);
-      toast.success("✅ Disconnesso da HeroFx");
+      toast.success("✅ Disconnesso!");
     } catch (error) {
-      toast.error("❌ Errore di disconnessione");
+      toast.error("❌ Errore durante la disconnessione!");
     } finally {
-      setIsConnecting(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-6">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-4xl font-bold">Configurazione HeroFx</h1>
-          <p className="text-muted-foreground">Collegati al tuo account demo HeroFx per il trading automatico</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Configurazione HeroFx</h1>
+            <p className="text-muted-foreground">Gestione account MT5 e parametri di trading</p>
+          </div>
+          <Badge variant={isConnected ? "default" : "secondary"} className="text-sm px-3 py-1">
+            {isConnected ? "🟢 Connesso" : "🔴 Disconnesso"}
+          </Badge>
         </div>
 
-        {/* Connection Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5" />
-              Stato Connessione
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Status:</span>
-              <Badge variant={isConnected ? "default" : "secondary"}>
-                {isConnected ? (
-                  <span className="flex items-center gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    🟢 Connesso
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1">
-                    <XCircle className="h-3 w-3" />
-                    🔴 Disconnesso
-                  </span>
-                )}
-              </Badge>
-            </div>
-
-            {isConnected && (
-              <Alert className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-800 dark:text-green-200">
-                  ✅ Connessione attiva a HeroFx-Trade (Login: 923721)
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="flex gap-2">
-              <Button
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
-                onClick={handleConnect}
-                disabled={isConnecting || isConnected}
-                size="lg"
-              >
-                {isConnecting ? "Connessione..." : "Connetti a HeroFx"}
-              </Button>
-
-              {isConnected && (
-                <Button
-                  className="flex-1"
-                  variant="destructive"
-                  onClick={handleDisconnect}
-                  disabled={isConnecting}
-                  size="lg"
-                >
-                  {isConnecting ? "Disconnessione..." : "Disconnetti"}
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Account Info */}
-        {isConnected && accountInfo && (
-          <Card>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Connection Status */}
+          <Card className="md:col-span-1">
             <CardHeader>
-              <CardTitle>Informazioni Account</CardTitle>
-              <CardDescription>Dati in tempo reale dal tuo account demo</CardDescription>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Stato Connessione
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col items-center justify-center py-6 space-y-4 border-2 border-dashed rounded-lg">
+                {isConnected ? (
+                  <>
+                    <CheckCircle2 className="h-12 w-12 text-green-500" />
+                    <div className="text-center">
+                      <p className="font-bold">Account Attivo</p>
+                      <p className="text-xs text-muted-foreground">HeroFx-Trade (923721)</p>
+                    </div>
+                    <Button variant="destructive" className="w-full" onClick={handleDisconnect} disabled={isLoading}>
+                      Disconnetti
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-12 w-12 text-yellow-500" />
+                    <div className="text-center">
+                      <p className="font-bold">Non Connesso</p>
+                      <p className="text-xs text-muted-foreground">Pronto per il login</p>
+                    </div>
+                    <Button className="w-full" onClick={handleConnect} disabled={isLoading}>
+                      Connetti Ora
+                    </Button>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Account Info */}
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Server className="h-5 w-5" />
+                Dettagli Account
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Login</p>
-                  <p className="text-lg font-bold">{accountInfo.login}</p>
+                  <Label className="text-muted-foreground">Login ID</Label>
+                  <p className="text-xl font-mono font-bold">923721</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Balance</p>
-                  <p className="text-lg font-bold text-green-600">${accountInfo.balance.toFixed(2)}</p>
+                  <Label className="text-muted-foreground">Server Broker</Label>
+                  <p className="text-xl font-bold">HeroFx-Trade</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Equity</p>
-                  <p className="text-lg font-bold text-blue-600">${accountInfo.equity.toFixed(2)}</p>
+                  <Label className="text-muted-foreground">Tipo Account</Label>
+                  <Badge variant="outline">DEMO</Badge>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Free Margin</p>
-                  <p className="text-lg font-bold">${accountInfo.freeMargin.toFixed(2)}</p>
+                  <Label className="text-muted-foreground">Simbolo Trading</Label>
+                  <p className="text-xl font-bold text-blue-600">XAUUSD.r</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Margin Level</p>
-                  <p className="text-lg font-bold">{accountInfo.marginLevel}%</p>
+                  <Label className="text-muted-foreground">Leva</Label>
+                  <p className="text-xl font-bold">1:100</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Total Profit</p>
-                  <p className="text-lg font-bold text-green-600">+${accountInfo.totalProfit.toFixed(2)}</p>
+                  <Label className="text-muted-foreground">Operatività</Label>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-blue-500" />
+                    <p className="text-xl font-bold">H23 (5/7)</p>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
-        )}
+        </div>
 
-        {/* Trading Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Impostazioni Trading</CardTitle>
-            <CardDescription>Configura i parametri per il trading automatico</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Simbolo</Label>
-                <Input value="XAUUSD.r" disabled className="bg-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <Label>Leva Finanziaria</Label>
-                <Input value="100" type="number" disabled className="bg-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <Label>Lot Size Minimo</Label>
-                <Input value="0.01" type="number" disabled className="bg-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <Label>Lot Size Massimo</Label>
-                <Input value="100" type="number" disabled className="bg-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <Label>Stop Loss (punti)</Label>
-                <Input value="20" type="number" disabled className="bg-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <Label>Take Profit (punti)</Label>
-                <Input value="40" type="number" disabled className="bg-slate-100" />
-              </div>
-            </div>
+        <Tabs defaultValue="trading" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="trading">Parametri Trading</TabsTrigger>
+            <TabsTrigger value="risk">Gestione Rischio</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="trading" className="space-y-4 mt-4">
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Lotto Default</Label>
+                    <Input type="number" defaultValue="0.10" disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Min Lot Size</Label>
+                    <Input type="number" defaultValue="0.01" disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Stop Loss (Points)</Label>
+                    <Input type="number" defaultValue="20" disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Take Profit (Points)</Label>
+                    <Input type="number" defaultValue="40" disabled />
+                  </div>
+                </div>
+                <Alert>
+                  <Zap className="h-4 w-4" />
+                  <AlertDescription>
+                    Questi parametri sono ottimizzati per il trading sull'oro (XAUUSD.r) con operatività H23.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                ℹ️ Questi parametri sono preconfigurati per il trading su XAUUSD.r. Puoi modificarli dalle impostazioni avanzate.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
+          <TabsContent value="risk" className="space-y-4 mt-4">
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Max Daily Loss ($)</Label>
+                    <Input type="number" defaultValue="100" disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Max Open Positions</Label>
+                    <Input type="number" defaultValue="5" disabled />
+                  </div>
+                </div>
+                <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <h4 className="font-bold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
+                    <Activity className="h-4 w-4" />
+                    Strategia di Protezione
+                  </h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Il bot monitora costantemente l'equity dell'account. Se la perdita giornaliera supera i $100, tutte le posizioni vengono chiuse e il bot si ferma fino al giorno successivo.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
-        {/* Backtesting Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Impostazioni Backtesting</CardTitle>
-            <CardDescription>Configura i parametri per il backtesting della strategia</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Data Inizio</Label>
-                <Input type="date" defaultValue="2024-01-15" disabled className="bg-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <Label>Data Fine</Label>
-                <Input type="date" defaultValue="2024-04-15" disabled className="bg-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <Label>Timeframe</Label>
-                <Input value="H1 (1 ora)" disabled className="bg-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <Label>Balance Iniziale</Label>
-                <Input value="$10,000" disabled className="bg-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <Label>Commissione</Label>
-                <Input value="0.01%" disabled className="bg-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <Label>Giorni di Test</Label>
-                <Input value="90 giorni" disabled className="bg-slate-100" />
-              </div>
-            </div>
-
-            <Button className="w-full" size="lg" disabled={!isConnected}>
-              Esegui Backtesting
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Info Alert */}
-        <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800">
-          <AlertCircle className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-800 dark:text-blue-200">
-            💡 Connettiti a HeroFx per visualizzare i dati reali del tuo account e iniziare il trading automatico su XAUUSD.r
-          </AlertDescription>
-        </Alert>
+        <div className="flex justify-end gap-4">
+          <Button variant="outline" onClick={() => window.history.back()}>Indietro</Button>
+          <Button disabled>Salva Modifiche</Button>
+        </div>
       </div>
     </div>
   );

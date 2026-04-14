@@ -1,8 +1,9 @@
-import { exec } from "child_process";
+import { exec, ChildProcess } from "child_process";
 import { promisify } from "util";
 import path from "path";
 import fs from "fs";
 import { PATHS_CONFIG, fileExists, getPythonCommand, getShellCommand } from "../config/paths.config";
+import { broadcastBotStatus } from "../_core/websocket";
 
 const execAsync = promisify(exec);
 
@@ -23,6 +24,8 @@ export interface BotExecutionResult {
 class BotExecutor {
   private isWindows = process.platform === "win32";
   private repositoryPath = PATHS_CONFIG.repositoryRoot;
+  private botProcess: ChildProcess | null = null;
+  private startTime: number | null = null;
 
   /**
    * Esegui lo script setup
@@ -100,69 +103,93 @@ class BotExecutor {
    * Avvia il bot di trading
    */
   async startBot(): Promise<BotExecutionResult> {
+    if (this.botProcess) {
+      return {
+        success: false,
+        message: "⚠️ Bot già in esecuzione",
+      };
+    }
+
     try {
       console.log(`[BotExecutor] Avvio bot dal repository: ${this.repositoryPath}`);
+      let command = "";
+      let executedPath = "";
 
-      // Prova a eseguire il file batch/shell
       if (this.isWindows) {
-        const runBotBat = PATHS_CONFIG.batch.runBot;
-        if (fileExists(runBotBat)) {
-          console.log(`[BotExecutor] Trovato: ${runBotBat}`);
-          const { stdout, stderr } = await execAsync(`"${runBotBat}"`, {
-            cwd: this.repositoryPath,
-            timeout: 600000, // 10 minuti
-          });
-          return {
-            success: true,
-            message: "✅ Bot avviato con successo",
-            output: stdout,
-            executedPath: runBotBat,
-          };
+        if (fileExists(PATHS_CONFIG.batch.runBot)) {
+          command = `"${PATHS_CONFIG.batch.runBot}"`;
+          executedPath = PATHS_CONFIG.batch.runBot;
         }
       } else {
-        const runBotSh = PATHS_CONFIG.shell.runBot;
-        if (fileExists(runBotSh)) {
-          console.log(`[BotExecutor] Trovato: ${runBotSh}`);
-          const { stdout, stderr } = await execAsync(`bash "${runBotSh}"`, {
-            cwd: this.repositoryPath,
-            timeout: 600000,
-          });
-          return {
-            success: true,
-            message: "✅ Bot avviato con successo",
-            output: stdout,
-            executedPath: runBotSh,
-          };
+        if (fileExists(PATHS_CONFIG.shell.runBot)) {
+          command = `bash "${PATHS_CONFIG.shell.runBot}"`;
+          executedPath = PATHS_CONFIG.shell.runBot;
         }
       }
 
-      // Se il file batch/shell non esiste, prova Python
-      const pythonRunBot = PATHS_CONFIG.python.runBot;
-      if (fileExists(pythonRunBot)) {
-        console.log(`[BotExecutor] Trovato: ${pythonRunBot}`);
-        const pythonCmd = getPythonCommand();
-        const { stdout, stderr } = await execAsync(`${pythonCmd} "${pythonRunBot}"`, {
-          cwd: this.repositoryPath,
-          timeout: 600000,
-        });
+      if (!command && fileExists(PATHS_CONFIG.python.runBot)) {
+        command = `${getPythonCommand()} "${PATHS_CONFIG.python.runBot}"`;
+        executedPath = PATHS_CONFIG.python.runBot;
+      }
+
+      if (!command) {
         return {
-          success: true,
-          message: "✅ Bot avviato con successo",
-          output: stdout,
-          executedPath: pythonRunBot,
+          success: false,
+          message: "❌ File bot non trovato",
         };
       }
 
+      this.botProcess = exec(command, { cwd: this.repositoryPath });
+      this.startTime = Date.now();
+
+      this.botProcess.on("exit", (code) => {
+        console.log(`[BotExecutor] Bot uscito con codice: ${code}`);
+        this.botProcess = null;
+        this.startTime = null;
+        broadcastBotStatus({ running: false, uptime: "0h 0m" });
+      });
+
+      broadcastBotStatus({ running: true, uptime: "0h 1m" });
+
       return {
-        success: false,
-        message: `❌ File bot non trovato in ${this.repositoryPath}`,
-        error: `Cercato: ${PATHS_CONFIG.batch.runBot} o ${PATHS_CONFIG.python.runBot}`,
+        success: true,
+        message: "🚀 Bot avviato con successo",
+        executedPath,
       };
     } catch (error: any) {
       console.error("[BotExecutor] Errore avvio bot:", error);
       return {
         success: false,
         message: "❌ Errore durante l'avvio del bot",
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Ferma il bot di trading
+   */
+  async stopBot(): Promise<BotExecutionResult> {
+    if (!this.botProcess) {
+      return {
+        success: false,
+        message: "⚠️ Bot non in esecuzione",
+      };
+    }
+
+    try {
+      this.botProcess.kill();
+      this.botProcess = null;
+      this.startTime = null;
+      broadcastBotStatus({ running: false, uptime: "0h 0m" });
+      return {
+        success: true,
+        message: "⏹️ Bot fermato con successo",
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: "❌ Errore durante l'arresto del bot",
         error: error.message,
       };
     }
@@ -310,6 +337,21 @@ class BotExecutor {
         error: error.message,
       };
     }
+  }
+
+  /**
+   * Ottieni lo stato corrente del bot
+   */
+  getStatus() {
+    const uptime = this.startTime ? Math.floor((Date.now() - this.startTime) / 60000) : 0;
+    const hours = Math.floor(uptime / 60);
+    const minutes = uptime % 60;
+    
+    return {
+      running: !!this.botProcess,
+      uptime: `${hours}h ${minutes}m`,
+      startTime: this.startTime,
+    };
   }
 
   /**

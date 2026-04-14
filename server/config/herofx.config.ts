@@ -2,7 +2,7 @@
  * HeroFx Account Configuration
  * Account Demo: 923721
  * Server: HeroFx-Trade
- * Symbol: XAUUSD.r (con .r per maggiore precisione)
+ * Symbol: XAUUSD.r (Gold)
  */
 
 export const HEROFX_CONFIG = {
@@ -18,7 +18,7 @@ export const HEROFX_CONFIG = {
   accountType: "demo",
   leverage: 100,
   
-  // API Endpoints
+  // API Endpoints (Mocked for now as per project structure)
   apiUrl: "https://api.herofx.com",
   wsUrl: "wss://ws.herofx.com",
   
@@ -31,6 +31,8 @@ export const HEROFX_CONFIG = {
     takeProfitPoints: 40,
     maxOpenPositions: 5,
     maxDailyLoss: 100, // USD
+    tradingHours: "H23", // 23 hours a day
+    tradingDays: "5/7", // 5 days a week (Monday-Friday)
   },
   
   // Backtesting Parameters

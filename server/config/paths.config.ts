@@ -10,7 +10,7 @@ import os from "os";
 const WINDOWS_REPO_PATH = "C:\\Users\\loren\\OneDrive\\Desktop\\TRADE\\newbotMANUS\\trading-bot--project-main";
 
 // Percorso alternativo (se scaricato altrove)
-const LINUX_REPO_PATH = "/home/ubuntu/trading-bot-ai";
+const LINUX_REPO_PATH = "/home/ubuntu/trading-bot--project";
 
 // Determina il percorso in base al sistema operativo
 const getRepositoryPath = (): string => {
@@ -46,10 +46,10 @@ export const PATHS_CONFIG = {
 
   // Percorsi dei file shell (Linux/Mac)
   shell: {
-    setup: path.join(getRepositoryPath(), "setup.sh"),
-    runBot: path.join(getRepositoryPath(), "run_bot.sh"),
-    backtest: path.join(getRepositoryPath(), "backtest.sh"),
-    dashboard: path.join(getRepositoryPath(), "dashboard.sh"),
+    setup: path.join(getRepositoryPath(), "trading-bot-ai", "setup.sh"),
+    runBot: path.join(getRepositoryPath(), "trading-bot-ai", "run_bot.sh"),
+    backtest: path.join(getRepositoryPath(), "trading-bot-ai", "backtest.sh"),
+    dashboard: path.join(getRepositoryPath(), "trading-bot-ai", "dashboard.sh"),
   },
 
   // Percorsi delle cartelle
@@ -60,6 +60,7 @@ export const PATHS_CONFIG = {
     logs: path.join(getRepositoryPath(), "logs"),
     data: path.join(getRepositoryPath(), "data"),
     backtester: path.join(getRepositoryPath(), "backtester"),
+    botAi: path.join(getRepositoryPath(), "trading-bot-ai"),
   },
 
   // Percorsi dei file di configurazione

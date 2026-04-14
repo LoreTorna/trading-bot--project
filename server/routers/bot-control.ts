@@ -23,11 +23,8 @@ export const botControlRouter = router({
    * Ferma il bot di trading
    */
   stop: publicProcedure.mutation(async () => {
-    // Implementazione per fermare il bot
-    return {
-      success: true,
-      message: "✅ Bot fermato con successo",
-    };
+    const executor = getBotExecutor();
+    return await executor.stopBot();
   }),
 
   /**
@@ -54,9 +51,12 @@ export const botControlRouter = router({
     const repositoryPath = executor.getRepositoryPath();
     const repositoryExists = executor.repositoryExists();
     const files = executor.getRepositoryFiles();
+    const botStatus = executor.getStatus();
 
     return {
       success: true,
+      running: botStatus.running,
+      uptime: botStatus.uptime,
       repositoryPath,
       repositoryExists,
       filesCount: files.length,
