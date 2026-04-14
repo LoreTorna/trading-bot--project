@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -10,6 +10,22 @@ const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = __dirname;
 const BOT_DIR = path.join(PROJECT_ROOT, 'trading-bot-ai');
 
+/**
+ * Verifica se un comando è disponibile nel sistema
+ */
+function isCommandAvailable(cmd) {
+  try {
+    const checkCmd = process.platform === 'win32' ? `where ${cmd}` : `which ${cmd}`;
+    execSync(checkCmd, { stdio: 'ignore' });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Esegue un comando shell
+ */
 function runCommand(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     console.log(`\x1b[36m> Eseguendo: ${command} ${args.join(' ')}\x1b[0m`);
@@ -29,6 +45,10 @@ function runCommand(command, args, options = {}) {
 async function main() {
   try {
     console.log('\x1b[32m=== Trading Bot Project - Avvio Unificato ===\x1b[0m\n');
+
+    // Determina il gestore di pacchetti (pnpm o npm)
+    const pkgManager = isCommandAvailable('pnpm') ? 'pnpm' : 'npm';
+    console.log(`\x1b[33mGestore pacchetti rilevato: ${pkgManager}\x1b[0m`);
 
     // 1. Verifica cartella bot
     if (!fs.existsSync(BOT_DIR)) {
@@ -51,11 +71,11 @@ async function main() {
 
     // 2. Installazione dipendenze
     console.log('\n\x1b[34m[1/3] Installazione dipendenze...\x1b[0m');
-    await runCommand('pnpm', ['install'], { cwd: PROJECT_ROOT });
+    await runCommand(pkgManager, ['install'], { cwd: PROJECT_ROOT });
 
     // 3. Build del progetto
     console.log('\n\x1b[34m[2/3] Compilazione Frontend e Backend...\x1b[0m');
-    await runCommand('pnpm', ['run', 'build'], { cwd: PROJECT_ROOT });
+    await runCommand(pkgManager, ['run', 'build'], { cwd: PROJECT_ROOT });
 
     // 4. Avvio del server
     console.log('\n\x1b[34m[3/3] Avvio del Server...\x1b[0m');

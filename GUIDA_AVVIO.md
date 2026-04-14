@@ -15,9 +15,9 @@ Il sito web funge da centro di comando per il bot. Per avviarlo:
 1. Apri il terminale nella cartella principale del progetto.
 2. Esegui il comando:
    ```bash
-   npm run start:all
+   node start.js
    ```
-   *Oppure su Windows puoi semplicemente cliccare su `start.bat`.*
+   *Oppure su Windows puoi semplicemente cliccare su `start.bat`. Il sistema rileverà automaticamente se usare `npm` o `pnpm`.*
 
 3. Una volta avviato, apri il browser all'indirizzo: `http://localhost:3000`
 
