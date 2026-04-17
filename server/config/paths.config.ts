@@ -6,20 +6,46 @@ import os from "os";
  * Supporta sia Windows che Linux/Mac
  */
 
-// Percorso base del repository (su Windows)
-const WINDOWS_REPO_PATH = "C:\\Users\\loren\\OneDrive\\Desktop\\TRADE\\newbotMANUS\\trading-bot--project-main";
-
-// Percorso alternativo (se scaricato altrove)
-const LINUX_REPO_PATH = "/home/ubuntu/trading-bot--project";
-
-// Determina il percorso in base al sistema operativo
+// Determina il percorso in base al sistema operativo e all'ambiente
 const getRepositoryPath = (): string => {
+  // Prova prima le variabili d'ambiente
+  if (process.env.REPO_PATH) {
+    return process.env.REPO_PATH;
+  }
+  
   if (process.platform === "win32") {
-    // Windows
-    return WINDOWS_REPO_PATH;
+    // Windows: percorsi comuni
+    const possiblePaths = [
+      "C:\\Users\\loren\\OneDrive\\Desktop\\TRADE\\newbotMANUS\\trading-bot--project",
+      "C:\\Users\\loren\\Desktop\\trading-bot--project",
+      process.cwd() // Directory corrente
+    ];
+    
+    // Ritorna il primo percorso che esiste
+    const fs = require('fs');
+    for (const path of possiblePaths) {
+      if (fs.existsSync(path)) {
+        return path;
+      }
+    }
+    
+    // Se nessuno esiste, ritorna il primo
+    return possiblePaths[0];
   } else {
     // Linux/Mac
-    return LINUX_REPO_PATH;
+    const possiblePaths = [
+      "/home/ubuntu/trading-bot--project",
+      process.cwd()
+    ];
+    
+    const fs = require('fs');
+    for (const path of possiblePaths) {
+      if (fs.existsSync(path)) {
+        return path;
+      }
+    }
+    
+    return possiblePaths[0];
   }
 };
 
@@ -29,10 +55,10 @@ export const PATHS_CONFIG = {
 
   // Percorsi dei file Python
   python: {
-    backtest: path.join(getRepositoryPath(), "backtest.py"),
-    runBot: path.join(getRepositoryPath(), "run_bot.py"),
-    setup: path.join(getRepositoryPath(), "setup.py"),
-    dashboard: path.join(getRepositoryPath(), "run_dashboard.py"),
+    backtest: path.join(getRepositoryPath(), "trading-bot-ai", "backtest.py"),
+    runBot: path.join(getRepositoryPath(), "trading-bot-ai", "run_bot.py"),
+    setup: path.join(getRepositoryPath(), "trading-bot-ai", "setup.py"),
+    dashboard: path.join(getRepositoryPath(), "trading-bot-ai", "run_dashboard.py"),
   },
 
   // Percorsi dei file batch (Windows)

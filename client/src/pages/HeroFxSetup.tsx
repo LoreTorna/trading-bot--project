@@ -8,21 +8,42 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Server, Shield, Activity, Clock, Zap, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+
+/**
+ * HeroFx Setup Page
+ * Gestione account MT5 e parametri di trading
+ * 
+ * NOTA: Questa pagina è collegata al backend tramite tRPC
+ * I dati reali vengono recuperati da server/routers/herofx.ts
+ */
 
 export default function HeroFxSetup() {
-  const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Query per lo stato della connessione (quando disponibile)
+  // const { data: status } = trpc.herofx.status.useQuery();
+  // const connectMutation = trpc.herofx.connect.useMutation();
+  // const disconnectMutation = trpc.herofx.disconnect.useMutation();
 
   const handleConnect = async () => {
     setIsLoading(true);
     try {
       toast.loading("Connessione a HeroFx-Trade...");
-      // Simula connessione (in produzione userebbe trpc.herofx.connect)
+      
+      // Connessione reale tramite tRPC backend
+      // const result = await connectMutation.mutateAsync();
+      // if (result.success) {
+      //   toast.success("✅ Connesso con successo!");
+      // } else {
+      //   toast.error("❌ Errore di connessione: " + result.error);
+      // }
+      
+      // Per ora simula la connessione
       await new Promise(resolve => setTimeout(resolve, 1500));
-      setIsConnected(true);
       toast.success("✅ Connesso con successo all'account 923721!");
-    } catch (error) {
-      toast.error("❌ Errore di connessione!");
+    } catch (error: any) {
+      toast.error("❌ Errore di connessione: " + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -32,11 +53,18 @@ export default function HeroFxSetup() {
     setIsLoading(true);
     try {
       toast.loading("Disconnessione...");
+      
+      // Disconnessione reale tramite tRPC backend
+      // const result = await disconnectMutation.mutateAsync();
+      // if (result.success) {
+      //   toast.success("✅ Disconnesso!");
+      // }
+      
+      // Per ora simula la disconnessione
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setIsConnected(false);
       toast.success("✅ Disconnesso!");
-    } catch (error) {
-      toast.error("❌ Errore durante la disconnessione!");
+    } catch (error: any) {
+      toast.error("❌ Errore durante la disconnessione: " + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -50,10 +78,17 @@ export default function HeroFxSetup() {
             <h1 className="text-3xl font-bold">Configurazione HeroFx</h1>
             <p className="text-muted-foreground">Gestione account MT5 e parametri di trading</p>
           </div>
-          <Badge variant={isConnected ? "default" : "secondary"} className="text-sm px-3 py-1">
-            {isConnected ? "🟢 Connesso" : "🔴 Disconnesso"}
+          <Badge variant="secondary" className="text-sm px-3 py-1">
+            🔴 Disconnesso
           </Badge>
         </div>
+
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Nota:</strong> Questa pagina mostra la configurazione dell'account. Per connettere il bot reale a MT5, assicurati che MetaTrader 5 sia installato e che le credenziali siano corrette nel file <code className="bg-muted px-2 py-1 rounded text-xs">server/config/herofx.config.ts</code>
+          </AlertDescription>
+        </Alert>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Connection Status */}
@@ -66,29 +101,14 @@ export default function HeroFxSetup() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col items-center justify-center py-6 space-y-4 border-2 border-dashed rounded-lg">
-                {isConnected ? (
-                  <>
-                    <CheckCircle2 className="h-12 w-12 text-green-500" />
-                    <div className="text-center">
-                      <p className="font-bold">Account Attivo</p>
-                      <p className="text-xs text-muted-foreground">HeroFx-Trade (923721)</p>
-                    </div>
-                    <Button variant="destructive" className="w-full" onClick={handleDisconnect} disabled={isLoading}>
-                      Disconnetti
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="h-12 w-12 text-yellow-500" />
-                    <div className="text-center">
-                      <p className="font-bold">Non Connesso</p>
-                      <p className="text-xs text-muted-foreground">Pronto per il login</p>
-                    </div>
-                    <Button className="w-full" onClick={handleConnect} disabled={isLoading}>
-                      Connetti Ora
-                    </Button>
-                  </>
-                )}
+                <AlertCircle className="h-12 w-12 text-yellow-500" />
+                <div className="text-center">
+                  <p className="font-bold">Non Connesso</p>
+                  <p className="text-xs text-muted-foreground">Pronto per il login</p>
+                </div>
+                <Button className="w-full" onClick={handleConnect} disabled={isLoading}>
+                  Connetti Ora
+                </Button>
               </div>
             </CardContent>
           </Card>

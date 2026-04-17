@@ -1,3 +1,4 @@
 #!/bin/bash
-echo Mock bot running...
-sleep 10
+# Esegue il bot di trading Python reale
+cd "$(dirname "$0")"
+python3 run_bot.py
