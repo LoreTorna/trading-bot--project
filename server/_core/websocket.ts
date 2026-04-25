@@ -80,6 +80,12 @@ export function broadcastBacktestProgress(progress: any) {
   }
 }
 
+export function broadcastBacktestComplete(result: any) {
+  if (io) {
+    io.emit("backtest-complete", result);
+  }
+}
+
 export function broadcastBotStatus(status: any) {
   if (io) {
     io.emit("bot-status", status);

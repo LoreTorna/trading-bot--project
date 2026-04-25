@@ -37,6 +37,7 @@ export function useWebSocket() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [backtestProgress, setBacktestProgress] = useState(0);
+  const [backtestResult, setBacktestResult] = useState<any | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
@@ -77,6 +78,12 @@ export function useWebSocket() {
       setBacktestProgress(progress);
     });
 
+    newSocket.on("backtest-complete", (result: any) => {
+      console.log("[WebSocket] Backtest complete:", result);
+      setBacktestResult(result);
+      setBacktestProgress(100);
+    });
+
     setSocket(newSocket);
 
     return () => {
@@ -103,6 +110,7 @@ export function useWebSocket() {
     metrics,
     trades,
     backtestProgress,
+    backtestResult,
     startBot,
     stopBot,
   };

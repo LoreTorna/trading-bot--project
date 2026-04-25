@@ -86,7 +86,7 @@ async function main() {
     console.log('\x1b[32mIl sito sarà disponibile a breve su http://localhost:3000\x1b[0m\n');
     
     // Avviamo il server in modalità produzione
-    await runCommand('node', ['dist/index.js'], { 
+    await runCommand('node', ['dist/index.cjs'], { 
       cwd: PROJECT_ROOT,
       env: { ...process.env, NODE_ENV: 'production' }
     });

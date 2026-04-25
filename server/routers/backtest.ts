@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import * as backtestService from "../services/backtesting";
+import { broadcastBacktestComplete } from "../_core/websocket";
 
 export const backtestRouter = router({
   runBacktest: publicProcedure
@@ -30,6 +31,9 @@ export const backtestRouter = router({
 
       await backtestService.saveBacktestResult(input.userId, input.strategyName, input.startDate, input.endDate, input.initialCapital, result);
 
+      // Broadcast completion via WebSocket so the dashboard updates in real-time
+      broadcastBacktestComplete({ ...result, symbol: input.symbol, strategyName: input.strategyName });
+
       return result;
     }),
 
@@ -49,6 +53,9 @@ export const backtestRouter = router({
       const { bestParams, bestResult } = await backtestService.optimizeStrategy(input.symbol, input.startDate, input.endDate, input.initialCapital, input.trials);
 
       await backtestService.saveBacktestResult(input.userId, `${input.strategyName} (Optimized)`, input.startDate, input.endDate, input.initialCapital, bestResult);
+
+      // Broadcast optimization complete via WebSocket
+      broadcastBacktestComplete({ ...bestResult, symbol: input.symbol, strategyName: `${input.strategyName} (Optimized)`, bestParams });
 
       return {
         bestParams,
