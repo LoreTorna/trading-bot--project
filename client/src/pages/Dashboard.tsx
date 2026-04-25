@@ -1,165 +1,225 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, TrendingUp, TrendingDown, Calendar, Clock, Target, AlertCircle } from "lucide-react";
+import { AlertCircle, BarChart3, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { summarizeTrades } from "@/lib/bot-data";
+import { PerformanceChart } from "@/components/PerformanceChart";
+import { PnLChart } from "@/components/PnLChart";
+import { TradeHistoryTable } from "@/components/TradeHistoryTable";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
-/**
- * Dashboard Page
- * Statistiche avanzate e metriche di trading
- * 
- * NOTA: Questa pagina è pronta per essere collegata al backend tramite tRPC
- * I dati reali verranno recuperati da:
- * - server/routers/bot.ts per le statistiche del bot
- * - server/db.ts per i dati storici dei trade
- * 
- * DATI FALSI RIMOSSI: Tutti i mock data sono stati rimossi.
- * Quando il bot è in esecuzione, i dati reali verranno visualizzati qui.
- */
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Dashboard() {
-  // Query per i dati reali (quando disponibili)
-  // const { data: stats } = trpc.bot.getStats.useQuery();
-  // const { data: trades } = trpc.bot.getTrades.useQuery();
-  // const { data: performance } = trpc.bot.getPerformance.useQuery();
+  const { status: wsStatus, metrics, trades } = useWebSocket();
+  const statusQuery = trpc.bot.status.useQuery(undefined, {
+    refetchInterval: 5000,
+  });
+
+  const isRunning = wsStatus?.running ?? statusQuery.data?.running ?? false;
+  const summary = summarizeTrades(trades);
+  const profitFactor = Number(summary.profitFactor || 0).toFixed(2);
+  const riskReward = Number(summary.riskReward || 0).toFixed(2);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-4xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Statistiche e metriche di trading in tempo reale</p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-4xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Statistiche operative e performance del bot in tempo reale.
+            </p>
+          </div>
+
+          <Badge variant={isRunning ? "default" : "secondary"}>
+            {isRunning ? "Bot attivo" : "Bot fermo"}
+          </Badge>
         </div>
 
-        {/* Alert - Dati Non Disponibili */}
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            <strong>Dati non disponibili:</strong> Avvia il bot per visualizzare le statistiche di trading in tempo reale. I dati falsi sono stati rimossi per garantire accuratezza.
-          </AlertDescription>
-        </Alert>
+        {!isRunning && trades.length === 0 ? (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Nessun dato live disponibile. Avvia il bot o esegui un backtest per riempire grafici e storico.
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-        {/* Key Metrics - Placeholder */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Profit Factor</CardTitle>
+              <CardTitle className="text-sm font-medium">Portfolio value</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-400">-</div>
-              <p className="text-xs text-muted-foreground mt-1">Rapporto Profitti/Perdite</p>
+              <div className="text-3xl font-bold text-green-600">
+                ${Number(metrics?.portfolioValue ?? 10000).toFixed(2)}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">Valore aggiornato dal bot</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Risk/Reward Ratio</CardTitle>
+              <CardTitle className="text-sm font-medium">Total return</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-400">-</div>
-              <p className="text-xs text-muted-foreground mt-1">Rapporto Rischio/Rendimento</p>
+              <div className="text-3xl font-bold text-blue-600">
+                {Number(metrics?.totalReturn ?? 0).toFixed(2)}%
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">Performance cumulata</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Max Drawdown</CardTitle>
+              <CardTitle className="text-sm font-medium">Profit factor</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-400">-</div>
-              <p className="text-xs text-muted-foreground mt-1">Massima perdita dal picco</p>
+              <div className="text-3xl font-bold">{profitFactor}</div>
+              <p className="mt-1 text-xs text-muted-foreground">Rapporto tra profitti e perdite</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+              <CardTitle className="text-sm font-medium">Win rate</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-400">-</div>
-              <p className="text-xs text-muted-foreground mt-1">Percentuale trade vincenti</p>
+              <div className="text-3xl font-bold">
+                {Number(metrics?.winRate ?? summary.winRate).toFixed(1)}%
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">Trade vincenti sul totale</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview">Panoramica</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
-            <TabsTrigger value="trades">Trade Recenti</TabsTrigger>
+            <TabsTrigger value="trades">Trade recenti</TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-4 mt-4">
+          <TabsContent value="overview" className="mt-4 space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <BarChart3 className="h-4 w-4" />
+                    Trade totali
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{summary.totalTrades}</div>
+                  <p className="text-xs text-muted-foreground">Record salvati nello storico</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <TrendingUp className="h-4 w-4" />
+                    Profitto totale
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    ${summary.totalProfit.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Somma di tutti i P&amp;L ricevuti</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <TrendingDown className="h-4 w-4" />
+                    Max drawdown
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">
+                    ${summary.maxDrawdown.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Drawdown stimato dalla curva profitti cumulata
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
             <Card>
               <CardHeader>
-                <CardTitle>Statistiche Generali</CardTitle>
-                <CardDescription>Metriche complessive del trading</CardDescription>
+                <CardTitle>Statistiche generali</CardTitle>
+                <CardDescription>
+                  Riepilogo costruito dai trade reali e dalle metriche del bot.
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-sm text-muted-foreground">Total Trades</p>
-                    <p className="text-2xl font-bold">-</p>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-sm text-muted-foreground">Total Profit</p>
-                    <p className="text-2xl font-bold">-</p>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-sm text-muted-foreground">Avg Trade</p>
-                    <p className="text-2xl font-bold">-</p>
-                  </div>
+              <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <div className="rounded-lg border p-4">
+                  <p className="text-sm text-muted-foreground">Trade vincenti</p>
+                  <p className="text-2xl font-bold">{summary.winningTrades}</p>
+                </div>
+                <div className="rounded-lg border p-4">
+                  <p className="text-sm text-muted-foreground">Trade perdenti</p>
+                  <p className="text-2xl font-bold">{summary.losingTrades}</p>
+                </div>
+                <div className="rounded-lg border p-4">
+                  <p className="text-sm text-muted-foreground">Average trade</p>
+                  <p className="text-2xl font-bold">${summary.avgTrade.toFixed(2)}</p>
+                </div>
+                <div className="rounded-lg border p-4">
+                  <p className="text-sm text-muted-foreground">Risk / reward</p>
+                  <p className="text-2xl font-bold">{riskReward}</p>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Performance Tab */}
-          <TabsContent value="performance" className="space-y-4 mt-4">
+          <TabsContent value="performance" className="mt-4 space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Analisi Performance</CardTitle>
-                <CardDescription>Dettagli di performance nel tempo</CardDescription>
+                <CardTitle>Curva performance</CardTitle>
+                <CardDescription>
+                  Serie costruita dal P&amp;L cumulato e dal balance di partenza.
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="p-8 text-center text-muted-foreground">
-                  <p>Nessun dato disponibile. Avvia il bot per visualizzare i grafici di performance.</p>
-                </div>
+              <CardContent className="h-[300px]">
+                <PerformanceChart metrics={metrics} trades={trades} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>P&amp;L giornaliero</CardTitle>
+                <CardDescription>
+                  Aggregazione per giornata dei trade raccolti dal bot.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                <PnLChart trades={trades} />
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Recent Trades Tab */}
-          <TabsContent value="trades" className="space-y-4 mt-4">
+          <TabsContent value="trades" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Trade Recenti</CardTitle>
-                <CardDescription>Ultimi trade eseguiti</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Storico trade
+                </CardTitle>
+                <CardDescription>
+                  Ultimi trade ricevuti dal processo Python o dal backtest.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="p-8 text-center text-muted-foreground">
-                  <p>Nessun trade disponibile. Avvia il bot per visualizzare i trade eseguiti.</p>
-                </div>
+                <TradeHistoryTable trades={trades} />
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Info Box */}
-        <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-          <CardHeader>
-            <CardTitle className="text-base">Come visualizzare i dati</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>1. Avvia il bot dal sito web o dalla riga di comando</p>
-            <p>2. Il bot inizierà a eseguire trade su XAUUSD.r</p>
-            <p>3. I dati verranno visualizzati in tempo reale in questa dashboard</p>
-            <p>4. I report giornalieri verranno generati automaticamente alle 23:00</p>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

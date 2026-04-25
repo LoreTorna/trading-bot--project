@@ -1,11 +1,11 @@
 {
-  "name": "trading-bot- project",
+  "name": "trading-bot-project",
   "version": "1.0.0",
   "license": "MIT",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=cjs --outdir=dist --out-extension:.js=.cjs",
-    "start": "NODE_ENV=production node dist/index.cjs",
+    "start": "node start-server.js",
     "start:all": "node start.js",
     "preview": "vite preview --host",
     "check": "tsc --noEmit",

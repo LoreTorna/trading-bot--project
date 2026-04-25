@@ -1,7 +1,17 @@
-import { Server as SocketIOServer } from "socket.io";
 import { Server as HTTPServer } from "http";
+import { Server as SocketIOServer } from "socket.io";
 
 let io: SocketIOServer | null = null;
+let latestBotStatus = {
+  running: false,
+  uptime: "0h 0m",
+  tradesCount: 0,
+  portfolioValue: 10000,
+  totalReturn: 0,
+  winRate: 0,
+};
+let latestMetrics: any = null;
+let latestTrades: any[] = [];
 
 export function initWebSocket(server: HTTPServer) {
   io = new SocketIOServer(server, {
@@ -14,25 +24,23 @@ export function initWebSocket(server: HTTPServer) {
   io.on("connection", (socket) => {
     console.log(`[WebSocket] Client connected: ${socket.id}`);
 
-    // Send initial status
-    socket.emit("bot-status", {
-      running: false,
-      uptime: "0h 0m",
-      tradesCount: 0,
-      portfolioValue: 10000,
-      totalReturn: 0,
-      winRate: 0,
-    });
+    socket.emit("bot-status", latestBotStatus);
 
-    // Handle disconnect
+    if (latestMetrics) {
+      socket.emit("metrics-update", latestMetrics);
+    }
+
+    if (latestTrades.length > 0) {
+      socket.emit("trades-snapshot", latestTrades);
+    }
+
     socket.on("disconnect", () => {
       console.log(`[WebSocket] Client disconnected: ${socket.id}`);
     });
 
-    // Handle bot control events
     socket.on("bot-start", () => {
       console.log("[WebSocket] Bot start requested");
-      io?.emit("bot-status", {
+      broadcastBotStatus({
         running: true,
         uptime: "0h 1m",
         tradesCount: 0,
@@ -44,7 +52,7 @@ export function initWebSocket(server: HTTPServer) {
 
     socket.on("bot-stop", () => {
       console.log("[WebSocket] Bot stop requested");
-      io?.emit("bot-status", {
+      broadcastBotStatus({
         running: false,
         uptime: "0h 0m",
         tradesCount: 0,
@@ -63,14 +71,23 @@ export function getWebSocket() {
 }
 
 export function broadcastMetrics(metrics: any) {
+  latestMetrics = metrics;
   if (io) {
     io.emit("metrics-update", metrics);
   }
 }
 
 export function broadcastTradeExecuted(trade: any) {
+  latestTrades = [trade, ...latestTrades.filter((item) => item.id !== trade.id)].slice(0, 50);
   if (io) {
     io.emit("trade-executed", trade);
+  }
+}
+
+export function broadcastTradesSnapshot(trades: any[]) {
+  latestTrades = trades.slice(0, 50);
+  if (io) {
+    io.emit("trades-snapshot", latestTrades);
   }
 }
 
@@ -87,6 +104,7 @@ export function broadcastBacktestComplete(result: any) {
 }
 
 export function broadcastBotStatus(status: any) {
+  latestBotStatus = status;
   if (io) {
     io.emit("bot-status", status);
   }

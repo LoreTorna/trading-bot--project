@@ -112,5 +112,8 @@ temp/
 server.log
 .manus-logs/
 
-# Bot directory (if local)
-
+# Bot runtime artifacts
+data/
+reports/
+trading-bot-ai/__pycache__/
+.codex-remote/

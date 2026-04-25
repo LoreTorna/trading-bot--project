@@ -1,148 +1,127 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Play, Square, Settings, BarChart3, Zap, Github, RefreshCw, Download, Eye, FileCode, Server, Clock } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useLocation } from "wouter";
+import {
+  AlertCircle,
+  BarChart3,
+  Clock,
+  Download,
+  Eye,
+  FileCode,
+  Github,
+  Play,
+  RefreshCw,
+  Server,
+  Settings,
+  Square,
+  Zap,
+} from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { summarizeTrades } from "@/lib/bot-data";
 import { PerformanceChart } from "@/components/PerformanceChart";
 import { PnLChart } from "@/components/PnLChart";
 import { TradeHistoryTable } from "@/components/TradeHistoryTable";
-import { useLocation } from "wouter";
-import { trpc } from "@/lib/trpc";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Home() {
   const [, navigate] = useLocation();
-  const { status: wsStatus, metrics: wsMetrics, trades, isConnected } = useWebSocket();
+  const { status: wsStatus, metrics, trades, isConnected } = useWebSocket();
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Fetch real repository status and files
-  const { data: botStatus, refetch: refetchStatus } = trpc.bot.status.useQuery();
 
-  const handleSetup = async () => {
+  const statusQuery = trpc.bot.status.useQuery(undefined, {
+    refetchInterval: 5000,
+  });
+
+  const setupMutation = trpc.bot.setup.useMutation();
+  const startMutation = trpc.bot.start.useMutation();
+  const stopMutation = trpc.bot.stop.useMutation();
+  const backtestMutation = trpc.bot.backtest.useMutation();
+
+  const botStatus = statusQuery.data;
+  const isRunning = wsStatus?.running ?? botStatus?.running ?? false;
+  const uptime = wsStatus?.uptime ?? botStatus?.uptime ?? "0h 0m";
+  const repositoryFiles = botStatus?.files ?? [];
+  const summary = summarizeTrades(trades);
+
+  async function runAction(
+    action: () => Promise<{ success: boolean; message: string }>,
+    loadingMessage: string,
+    successMessage: string
+  ) {
     setIsLoading(true);
+    const notificationId = toast.loading(loadingMessage);
+
     try {
-      toast.loading("⚙️ Setup in corso...");
-      const result = await trpc.bot.setup.mutate();
+      const result = await action();
+
       if (result.success) {
-        toast.success("✅ Setup completato con successo!");
-        refetchStatus();
+        toast.success(successMessage, { id: notificationId });
       } else {
-        toast.error(`❌ Setup fallito: ${result.message}`);
+        toast.error(result.message, { id: notificationId });
       }
+
+      await statusQuery.refetch();
     } catch (error) {
-      toast.error("❌ Errore durante il setup!");
-      console.error(error);
+      const message =
+        error instanceof Error ? error.message : "Errore sconosciuto";
+      toast.error(message, { id: notificationId });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleStartBot = async () => {
-    setIsLoading(true);
-    try {
-      toast.loading("🚀 Avvio bot...");
-      const result = await trpc.bot.start.mutate();
-      if (result.success) {
-        toast.success("🚀 Bot avviato con successo!");
-        refetchStatus();
-      } else {
-        toast.error(`❌ Errore avvio bot: ${result.message}`);
-      }
-    } catch (error) {
-      toast.error("❌ Errore durante l'avvio del bot!");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleStopBot = async () => {
-    setIsLoading(true);
-    try {
-      toast.loading("⏹️ Arresto bot...");
-      const result = await trpc.bot.stop.mutate();
-      if (result.success) {
-        toast.success("⏹️ Bot fermato!");
-        refetchStatus();
-      } else {
-        toast.error(`❌ Errore stop bot: ${result.message}`);
-      }
-    } catch (error) {
-      toast.error("❌ Errore durante l'arresto del bot!");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleBacktest = async () => {
-    setIsLoading(true);
-    try {
-      toast.loading("📊 Backtesting in corso...");
-      const result = await trpc.bot.backtest.mutate();
-      if (result.success) {
-        toast.success("📊 Backtesting completato!");
-      } else {
-        toast.error(`❌ Backtesting fallito: ${result.message}`);
-      }
-    } catch (error) {
-      toast.error("❌ Errore durante il backtesting!");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleViewDashboard = () => {
-    navigate("/dashboard");
-  };
-
-  const isRunning = wsStatus?.running || botStatus?.running;
-  const uptime = wsStatus?.uptime || botStatus?.uptime || "0h 0m";
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
+      <div className="container mx-auto space-y-6 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-4xl font-bold">Trading Bot AI</h1>
-            <p className="text-muted-foreground">Controllo automatico XAUUSD.r (Gold)</p>
+            <p className="text-muted-foreground">
+              Controllo operativo del bot XAUUSD.r con monitoraggio live e backtest.
+            </p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${isRunning ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></div>
-              <span className="text-sm font-medium">{isRunning ? "🟢 Attivo" : "🔴 Inattivo"}</span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleViewDashboard}
-            >
-              <Eye className="h-4 w-4 mr-2" />
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge variant={isConnected ? "default" : "outline"}>
+              {isConnected ? "WebSocket online" : "WebSocket offline"}
+            </Badge>
+            <Badge variant={isRunning ? "default" : "secondary"}>
+              {isRunning ? "Bot attivo" : "Bot fermo"}
+            </Badge>
+            <Button variant="outline" onClick={() => navigate("/dashboard")}>
+              <Eye className="mr-2 h-4 w-4" />
               Dashboard
             </Button>
           </div>
         </div>
 
-        {/* Status Alert */}
         {isRunning ? (
-          <Alert className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800">
+          <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
             <Zap className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-green-800 dark:text-green-200">
-              ✅ Bot in esecuzione - Operatività H23 su XAUUSD.r attiva
+              Il bot e in esecuzione. Lo stato live arriva da WebSocket e dai file JSON del processo Python.
             </AlertDescription>
           </Alert>
         ) : (
-          <Alert className="bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800">
+          <Alert className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950">
             <AlertCircle className="h-4 w-4 text-yellow-600" />
             <AlertDescription className="text-yellow-800 dark:text-yellow-200">
-              ⚠️ Bot fermo - Pronto per l'avvio su account HeroFx (923721)
+              Il bot non e in esecuzione. Puoi fare setup, avviarlo o eseguire un backtest dal pannello di controllo.
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Main Tabs */}
         <Tabs defaultValue="control" className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="control">Controllo</TabsTrigger>
@@ -151,10 +130,8 @@ export default function Home() {
             <TabsTrigger value="settings">Impostazioni</TabsTrigger>
           </TabsList>
 
-          {/* Control Tab */}
           <TabsContent value="control" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Bot Status Card */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -164,131 +141,211 @@ export default function Home() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Status:</span>
+                    <span className="text-sm font-medium">Stato</span>
                     <Badge variant={isRunning ? "default" : "secondary"}>
-                      {isRunning ? "🟢 In Esecuzione" : "🔴 Fermo"}
+                      {isRunning ? "In esecuzione" : "Fermo"}
                     </Badge>
                   </div>
+
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Uptime:</span>
-                    <span className="text-sm font-mono">{uptime}</span>
+                    <span className="text-sm font-medium">Uptime</span>
+                    <span className="font-mono text-sm">{uptime}</span>
                   </div>
+
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Simbolo:</span>
-                    <span className="text-sm font-bold">XAUUSD.r</span>
+                    <span className="text-sm font-medium">Simbolo</span>
+                    <span className="font-bold text-sm">XAUUSD.r</span>
                   </div>
+
                   <div className="flex gap-2">
                     <Button
                       className="flex-1 bg-green-600 hover:bg-green-700"
-                      onClick={handleStartBot}
                       disabled={isRunning || isLoading}
+                      onClick={() =>
+                        runAction(
+                          () => startMutation.mutateAsync(),
+                          "Avvio del bot in corso...",
+                          "Bot avviato con successo."
+                        )
+                      }
                       size="lg"
                     >
-                      <Play className="h-4 w-4 mr-2" />
-                      {isLoading ? "Avvio..." : "Avvia Bot"}
+                      <Play className="mr-2 h-4 w-4" />
+                      Avvia Bot
                     </Button>
+
                     <Button
                       className="flex-1"
-                      variant="destructive"
-                      onClick={handleStopBot}
                       disabled={!isRunning || isLoading}
+                      onClick={() =>
+                        runAction(
+                          () => stopMutation.mutateAsync(),
+                          "Arresto del bot in corso...",
+                          "Bot fermato correttamente."
+                        )
+                      }
                       size="lg"
+                      variant="destructive"
                     >
-                      <Square className="h-4 w-4 mr-2" />
-                      {isLoading ? "Stop..." : "Ferma Bot"}
+                      <Square className="mr-2 h-4 w-4" />
+                      Ferma Bot
                     </Button>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Quick Actions Card */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Settings className="h-5 w-5" />
                     Azioni Rapide
                   </CardTitle>
+                  <CardDescription>
+                    Le azioni chiamano i router tRPC reali del backend.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" onClick={handleSetup} disabled={isLoading}>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Esegui Setup
+                  <Button
+                    disabled={isLoading}
+                    onClick={() =>
+                      runAction(
+                        () => setupMutation.mutateAsync(),
+                        "Setup del bot in corso...",
+                        "Setup completato."
+                      )
+                    }
+                    variant="outline"
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Setup
                   </Button>
-                  <Button variant="outline" onClick={handleBacktest} disabled={isLoading}>
-                    <BarChart3 className="h-4 w-4 mr-2" />
+
+                  <Button
+                    disabled={isLoading}
+                    onClick={() =>
+                      runAction(
+                        () => backtestMutation.mutateAsync(),
+                        "Backtest in corso...",
+                        "Backtest completato."
+                      )
+                    }
+                    variant="outline"
+                  >
+                    <BarChart3 className="mr-2 h-4 w-4" />
                     Backtest
                   </Button>
-                  <Button variant="outline" onClick={() => navigate("/dashboard")}>
-                    <Eye className="h-4 w-4 mr-2" />
+
+                  <Button onClick={() => navigate("/dashboard")} variant="outline">
+                    <Eye className="mr-2 h-4 w-4" />
                     Analisi
                   </Button>
-                  <Button variant="outline" onClick={() => navigate("/herofx")}>
-                    <Server className="h-4 w-4 mr-2" />
+
+                  <Button onClick={() => navigate("/herofx")} variant="outline">
+                    <Server className="mr-2 h-4 w-4" />
                     Config MT5
                   </Button>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Live Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-green-600">${wsMetrics?.portfolioValue?.toFixed(2) || "10,000.00"}</div>
-                  <p className="text-xs text-muted-foreground">Bilancio Account</p>
+                  <div className="text-2xl font-bold text-green-600">
+                    ${Number(metrics?.portfolioValue ?? 10000).toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Portfolio value</p>
                 </CardContent>
               </Card>
+
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-blue-600">+{wsMetrics?.totalReturn?.toFixed(2) || "0.00"}%</div>
-                  <p className="text-xs text-muted-foreground">Ritorno Totale</p>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {Number(metrics?.totalReturn ?? 0).toFixed(2)}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">Ritorno totale</p>
                 </CardContent>
               </Card>
+
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-2xl font-bold">{wsMetrics?.winRate?.toFixed(1) || "0.0"}%</div>
-                  <p className="text-xs text-muted-foreground">Win Rate</p>
+                  <div className="text-2xl font-bold">
+                    {Number(metrics?.winRate ?? summary.winRate).toFixed(1)}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">Win rate</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold">
+                    {metrics?.trades ?? summary.totalTrades}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Trade registrati</p>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          {/* Repository Tab */}
           <TabsContent value="repository" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Github className="h-5 w-5" />
-                  File del Repository
+                  Repository locale
                 </CardTitle>
                 <CardDescription>
-                  File reali rilevati in {botStatus?.repositoryPath}
+                  Il backend rileva il percorso del progetto che contiene il bot Python.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {botStatus?.files?.map((file: string) => (
-                    <div key={file} className="flex items-center p-2 border rounded bg-white dark:bg-slate-950">
-                      <FileCode className="h-4 w-4 mr-2 text-blue-500" />
-                      <span className="text-sm font-mono">{file}</span>
-                    </div>
-                  ))}
-                  {(!botStatus?.files || botStatus.files.length === 0) && (
-                    <p className="text-sm text-muted-foreground italic">Nessun file rilevato o repository non trovato.</p>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border p-4">
+                  <p className="text-xs uppercase text-muted-foreground">Percorso</p>
+                  <p className="break-all font-mono text-sm">
+                    {botStatus?.repositoryPath ?? "Rilevazione in corso..."}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={botStatus?.repositoryExists ? "default" : "destructive"}>
+                    {botStatus?.repositoryExists ? "Repository trovato" : "Repository non trovato"}
+                  </Badge>
+                  <Badge variant="outline">
+                    {botStatus?.filesCount ?? 0} elementi rilevati
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {repositoryFiles.length > 0 ? (
+                    repositoryFiles.map((file) => (
+                      <div
+                        key={file}
+                        className="flex items-center rounded border bg-white p-2 dark:bg-slate-950"
+                      >
+                        <FileCode className="mr-2 h-4 w-4 text-blue-500" />
+                        <span className="text-sm font-mono">{file}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="italic text-muted-foreground">
+                      Nessun file trovato dal servizio bot-control.
+                    </p>
                   )}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Account Tab */}
           <TabsContent value="account" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Server className="h-5 w-5" />
-                  Dettagli Account Demo MT5
+                  Account MT5
                 </CardTitle>
+                <CardDescription>
+                  Le credenziali del broker vanno impostate tramite variabili ambiente o file .env.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -305,80 +362,97 @@ export default function Home() {
                     <p className="text-lg font-bold">XAUUSD.r</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">Operatività</p>
+                    <p className="text-sm font-medium text-muted-foreground">Operativita</p>
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-blue-500" />
                       <p className="text-lg font-bold">H23 (5/7)</p>
                     </div>
                   </div>
                 </div>
+
                 <Alert>
                   <Zap className="h-4 w-4" />
                   <AlertDescription>
-                    Il bot è configurato per girare 23 ore al giorno, 5 giorni su 7, seguendo l'apertura del mercato dell'oro.
+                    Se MetaTrader 5 non e installato, il bot passa automaticamente in modalita simulazione e continua a produrre metriche e storico trade.
                   </AlertDescription>
                 </Alert>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Configurazione Bot</CardTitle>
+                <CardTitle>Configurazione bot</CardTitle>
+                <CardDescription>
+                  Parametri di base allineati tra interfaccia, server e script Python.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Lotto Default</label>
-                    <div className="p-2 border rounded bg-slate-50 dark:bg-slate-900">0.10</div>
+                    <label className="text-sm font-medium">Lotto default</label>
+                    <div className="rounded border bg-slate-50 p-2 dark:bg-slate-900">0.10</div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Stop Loss (Points)</label>
-                    <div className="p-2 border rounded bg-slate-50 dark:bg-slate-900">20</div>
+                    <label className="text-sm font-medium">Stop loss (points)</label>
+                    <div className="rounded border bg-slate-50 p-2 dark:bg-slate-900">20</div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Take Profit (Points)</label>
-                    <div className="p-2 border rounded bg-slate-50 dark:bg-slate-900">40</div>
+                    <label className="text-sm font-medium">Take profit (points)</label>
+                    <div className="rounded border bg-slate-50 p-2 dark:bg-slate-900">40</div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Max Daily Loss ($)</label>
-                    <div className="p-2 border rounded bg-slate-50 dark:bg-slate-900">100</div>
+                    <label className="text-sm font-medium">Max daily loss ($)</label>
+                    <div className="rounded border bg-slate-50 p-2 dark:bg-slate-900">100</div>
                   </div>
                 </div>
-                <Button className="w-full" variant="outline" onClick={() => navigate("/herofx")}>
-                  Modifica Impostazioni Avanzate
+
+                <Button className="w-full" onClick={() => navigate("/herofx")} variant="outline">
+                  Modifica impostazioni avanzate
                 </Button>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Performance Storica</CardTitle>
+              <CardTitle>Performance storica</CardTitle>
             </CardHeader>
             <CardContent className="h-[300px]">
-              <PerformanceChart />
+              <PerformanceChart metrics={metrics} trades={trades} />
             </CardContent>
           </Card>
+
           <Card>
             <CardHeader>
-              <CardTitle>Profit & Loss (Giornaliero)</CardTitle>
+              <CardTitle>Profit &amp; Loss giornaliero</CardTitle>
             </CardHeader>
             <CardContent className="h-[300px]">
-              <PnLChart />
+              <PnLChart trades={trades} />
             </CardContent>
           </Card>
         </div>
 
-        {/* Recent Trades */}
         <Card>
-          <CardHeader>
-            <CardTitle>Ultimi Trade Eseguiti</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Ultimi trade eseguiti</CardTitle>
+              <CardDescription>
+                Tabella alimentata dagli aggiornamenti WebSocket e dai file `data/trades.json`.
+              </CardDescription>
+            </div>
+
+            <Button
+              onClick={() => navigate("/dashboard")}
+              size="sm"
+              variant="outline"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Vista completa
+            </Button>
           </CardHeader>
           <CardContent>
             <TradeHistoryTable trades={trades} />

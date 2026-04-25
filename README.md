@@ -1,57 +1,66 @@
 # Trading Bot Project
 
-Questo progetto è un sistema completo per la gestione di un trading bot, con un'interfaccia web moderna (React + Vite) e un backend robusto (Express + tRPC).
+Questo progetto unisce:
 
-## 🚀 Avvio Rapido
+- frontend React + Vite per controllo e dashboard;
+- backend Express + tRPC per orchestrare setup, avvio, stop e backtest;
+- bot Python che usa MetaTrader 5 quando configurato e passa in simulazione quando MT5 o le credenziali non sono disponibili.
 
-Per far partire tutto il progetto (Sito + Bot + Server) con un unico comando, esegui il file corrispondente al tuo sistema operativo:
+## Avvio rapido
 
-### 🪟 Windows
-Fai doppio clic su:
-```text
+### Windows
+
+Esegui:
+
+```powershell
 start.bat
 ```
 
-### 🍎 macOS / 🐧 Linux
-Apri il terminale nella cartella del progetto ed esegui:
+### macOS / Linux
+
+Esegui:
+
 ```bash
 ./start.sh
 ```
-*(Se necessario, dai i permessi con `chmod +x start.sh`)*
 
-### 🛠️ Metodo Universale (Node.js)
-Se hai Node.js installato, puoi sempre usare:
+### Node.js universale
+
 ```bash
 node start.js
 ```
-Oppure tramite pnpm:
-```bash
-pnpm run start:all
-```
 
-Questo script si occuperà di:
-1. Verificare la presenza della cartella `trading-bot-ai`.
-2. Installare tutte le dipendenze necessarie.
-3. Compilare il frontend e il backend.
-4. Avviare il server di produzione su `http://localhost:3000`.
+Lo script:
 
-## 📁 Struttura del Progetto
+1. verifica le dipendenze;
+2. compila frontend e backend;
+3. avvia il server su `http://localhost:3000`.
 
-- `client/`: Codice sorgente del frontend (React).
-- `server/`: Codice sorgente del backend (Express + tRPC).
-- `shared/`: Codice condiviso tra frontend e backend.
-- `drizzle/`: Schema del database e migrazioni.
-- `trading-bot-ai/`: Cartella dove risiede il bot di trading esterno.
-- `dist/`: Cartella generata dopo la build (contiene il sito compilato).
+## Setup ambiente
 
-## 🛠️ Sviluppo
+1. Copia `.env.example` in `.env`.
+2. Inserisci le credenziali MT5 / HeroFx reali se vuoi usare la modalita live.
+3. Se lasci `HEROFX_PASSWORD` vuota, il bot avvia automaticamente la modalita simulazione.
 
-Per avviare il progetto in modalità sviluppo:
+## Comandi utili
 
 ```bash
-pnpm run dev
+npm run check
+npm run build
+npm run start
+npm run start:all
 ```
 
-## 📝 Note
+## Struttura progetto
 
-Il sistema è configurato per funzionare con un database MySQL. Se `DATABASE_URL` non è impostato, il sistema utilizzerà un database mock per scopi dimostrativi.
+- `client/`: interfaccia web.
+- `server/`: backend Express, tRPC e WebSocket.
+- `trading-bot-ai/`: script Python del bot, setup e backtest.
+- `data/`: metriche, trade e output runtime generati dal bot.
+- `logs/`: log applicativi.
+
+## Note operative
+
+- Il server legge i file JSON prodotti dal processo Python e li inoltra in tempo reale via WebSocket.
+- Il backtest locale salva i risultati in `data/backtest_results.json`.
+- Le credenziali sensibili non devono essere committate nel repository.

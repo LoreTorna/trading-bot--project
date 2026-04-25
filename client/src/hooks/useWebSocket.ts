@@ -1,41 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
-
-interface BotStatus {
-  running: boolean;
-  uptime: string;
-  tradesCount: number;
-  portfolioValue: number;
-  totalReturn: number;
-  winRate: number;
-}
-
-interface Metrics {
-  portfolioValue: number;
-  totalReturn: number;
-  winRate: number;
-  sharpeRatio: number;
-  maxDrawdown: number;
-  trades: number;
-  timestamp: string;
-}
-
-interface Trade {
-  id: number | string;
-  symbol: string;
-  type: string;
-  price: number;
-  quantity: number;
-  pnl: number;
-  time: string | Date;
-  status: string;
-}
+import type { BotMetrics, BotStatus, BotTrade } from "@/lib/bot-data";
+import { normalizeTrade, normalizeTrades } from "@/lib/bot-data";
 
 export function useWebSocket() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [status, setStatus] = useState<BotStatus | null>(null);
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const [metrics, setMetrics] = useState<BotMetrics | null>(null);
+  const [trades, setTrades] = useState<BotTrade[]>([]);
   const [backtestProgress, setBacktestProgress] = useState(0);
   const [backtestResult, setBacktestResult] = useState<any | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -63,14 +35,21 @@ export function useWebSocket() {
       setStatus(statusData);
     });
 
-    newSocket.on("metrics-update", (metricsData: Metrics) => {
+    newSocket.on("metrics-update", (metricsData: BotMetrics) => {
       console.log("[WebSocket] Metrics update:", metricsData);
       setMetrics(metricsData);
     });
 
-    newSocket.on("trade-executed", (trade: Trade) => {
+    newSocket.on("trade-executed", (trade: BotTrade) => {
       console.log("[WebSocket] Trade executed:", trade);
-      setTrades((prev) => [trade, ...prev].slice(0, 50));
+      setTrades((prev) =>
+        normalizeTrades([normalizeTrade(trade), ...prev]).slice(0, 50)
+      );
+    });
+
+    newSocket.on("trades-snapshot", (snapshot: BotTrade[]) => {
+      console.log("[WebSocket] Trades snapshot:", snapshot);
+      setTrades(normalizeTrades(snapshot).slice(0, 50));
     });
 
     newSocket.on("backtest-progress", (progress: number) => {

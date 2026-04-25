@@ -1,21 +1,30 @@
 import express from "express";
 import { createServer } from "http";
+import fs from "fs";
 import path from "path";
 import * as trpcExpress from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { initWebSocket } from "./_core/websocket";
 
-// In CJS (compiled by esbuild --format=cjs), __dirname is available as a global
 declare const __dirname: string;
+
+function resolveStaticPath() {
+  const productionStaticPath = path.resolve(__dirname, "public");
+  const fallbackStaticPath = path.resolve(__dirname, "..", "dist", "public");
+
+  if (fs.existsSync(path.join(productionStaticPath, "index.html"))) {
+    return productionStaticPath;
+  }
+
+  return fallbackStaticPath;
+}
 
 async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  // Initialize WebSocket
   initWebSocket(server);
 
-  // tRPC middleware
   app.use(
     "/trpc",
     trpcExpress.createExpressMiddleware({
@@ -24,18 +33,12 @@ async function startServer() {
     })
   );
 
-  // Serve static files from dist/public in production
-  const staticPath =
-    process.env.NODE_ENV === "production"
-      ? path.resolve(__dirname, "public")
-      : path.resolve(__dirname, "..", "dist", "public");
+  const staticPath = resolveStaticPath();
 
   app.use(express.static(staticPath));
 
-  // Handle client-side routing - serve index.html for all routes
   app.get("*", (_req, res) => {
-    const indexPath = path.join(staticPath, "index.html");
-    res.sendFile(indexPath);
+    res.sendFile(path.join(staticPath, "index.html"));
   });
 
   const port = Number(process.env.PORT) || 3000;
@@ -47,4 +50,6 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((error) => {
+  console.error(error);
+});

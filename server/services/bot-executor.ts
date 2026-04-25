@@ -1,7 +1,6 @@
-import { exec, spawn, ChildProcess } from "child_process";
-import { promisify } from "util";
-import path from "path";
+import { ChildProcess, exec, spawn } from "child_process";
 import fs from "fs";
+import { promisify } from "util";
 import {
   PATHS_CONFIG,
   fileExists,
@@ -11,6 +10,7 @@ import {
   broadcastBotStatus,
   broadcastMetrics,
   broadcastTradeExecuted,
+  broadcastTradesSnapshot,
 } from "../_core/websocket";
 
 const execAsync = promisify(exec);
@@ -23,347 +23,484 @@ export interface BotExecutionResult {
   executedPath?: string;
 }
 
-// ─── Data directory setup ──────────────────────────────────────────────────
-function ensureDataDir() {
+function ensureRuntimeDirectories() {
   const dataDir = PATHS_CONFIG.folders.data;
   const logsDir = PATHS_CONFIG.folders.logs;
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
 }
 
-// ─── Polling: legge i JSON scritti dal Python e li trasmette via WebSocket ─
+function readJsonFile<T>(filePath: string): T | null {
+  try {
+    if (!fileExists(filePath)) {
+      return null;
+    }
+
+    return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
+  } catch {
+    return null;
+  }
+}
+
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let lastMetricsHash = "";
 let lastTradesHash = "";
 
 function startDataPolling() {
-  if (pollInterval) return; // già attivo
-  ensureDataDir();
+  if (pollInterval) {
+    return;
+  }
+
+  ensureRuntimeDirectories();
 
   pollInterval = setInterval(() => {
-    // Leggi metrics.json
     try {
       if (fileExists(PATHS_CONFIG.data.metrics)) {
-        const raw = fs.readFileSync(PATHS_CONFIG.data.metrics, "utf-8");
-        if (raw && raw !== lastMetricsHash) {
-          lastMetricsHash = raw;
-          const metrics = JSON.parse(raw);
-          broadcastMetrics(metrics);
+        const rawMetrics = fs.readFileSync(PATHS_CONFIG.data.metrics, "utf-8");
+        if (rawMetrics && rawMetrics !== lastMetricsHash) {
+          lastMetricsHash = rawMetrics;
+          broadcastMetrics(JSON.parse(rawMetrics));
         }
       }
-    } catch (e) {
-      // file corrotto o in scrittura — ignora questo ciclo
+    } catch {
+      // Ignore partial writes from the Python process.
     }
 
-    // Leggi trades.json
     try {
       if (fileExists(PATHS_CONFIG.data.trades)) {
-        const raw = fs.readFileSync(PATHS_CONFIG.data.trades, "utf-8");
-        if (raw && raw !== lastTradesHash) {
-          lastTradesHash = raw;
-          const data = JSON.parse(raw);
-          // Trasmetti solo l'ultimo trade aggiunto
-          if (Array.isArray(data) && data.length > 0) {
-            broadcastTradeExecuted(data[data.length - 1]);
+        const rawTrades = fs.readFileSync(PATHS_CONFIG.data.trades, "utf-8");
+        if (rawTrades && rawTrades !== lastTradesHash) {
+          lastTradesHash = rawTrades;
+          const trades = JSON.parse(rawTrades);
+          if (Array.isArray(trades)) {
+            const snapshot = trades.slice(-50).reverse();
+            broadcastTradesSnapshot(snapshot);
+            if (snapshot.length > 0) {
+              broadcastTradeExecuted(snapshot[0]);
+            }
           }
         }
       }
-    } catch (e) {
-      // file corrotto — ignora
+    } catch {
+      // Ignore partial writes from the Python process.
     }
-  }, 2000); // ogni 2 secondi
+  }, 2000);
 }
 
 function stopDataPolling() {
-  if (pollInterval) {
-    clearInterval(pollInterval);
-    pollInterval = null;
-    lastMetricsHash = "";
-    lastTradesHash = "";
+  if (!pollInterval) {
+    return;
   }
+
+  clearInterval(pollInterval);
+  pollInterval = null;
+  lastMetricsHash = "";
+  lastTradesHash = "";
 }
 
-// ─── BotExecutor ──────────────────────────────────────────────────────────
 class BotExecutor {
-  private isWindows = process.platform === "win32";
-  private repositoryPath = PATHS_CONFIG.repositoryRoot;
+  private readonly isWindows = process.platform === "win32";
+  private readonly repositoryPath = PATHS_CONFIG.repositoryRoot;
   private botProcess: ChildProcess | null = null;
   private startTime: number | null = null;
 
-  // ── Setup ──────────────────────────────────────────────────────────────
-  async runSetup(): Promise<BotExecutionResult> {
-    try {
-      console.log(`[BotExecutor] Setup dal repository: ${this.repositoryPath}`);
-      ensureDataDir();
+  private getBroadcastStatus(running: boolean) {
+    const metrics = readJsonFile<Record<string, number>>(PATHS_CONFIG.data.metrics);
+    const trades = readJsonFile<any[]>(PATHS_CONFIG.data.trades);
+    const uptimeMinutes = this.startTime
+      ? Math.floor((Date.now() - this.startTime) / 60_000)
+      : 0;
 
-      const pythonCmd = getPythonCommand();
-      const setupScript = PATHS_CONFIG.python.setup;
-
-      if (fileExists(setupScript)) {
-        console.log(`[BotExecutor] Trovato: ${setupScript}`);
-        const { stdout } = await execAsync(
-          `"${pythonCmd}" "${setupScript}"`,
-          { cwd: this.repositoryPath, timeout: 300_000 }
-        );
-        return {
-          success: true,
-          message: "✅ Setup completato con successo",
-          output: stdout,
-          executedPath: setupScript,
-        };
-      }
-
-      // Fallback: batch/shell
-      if (this.isWindows && fileExists(PATHS_CONFIG.batch.setup)) {
-        const { stdout } = await execAsync(`"${PATHS_CONFIG.batch.setup}"`, {
-          cwd: this.repositoryPath,
-          timeout: 300_000,
-        });
-        return { success: true, message: "✅ Setup completato", output: stdout };
-      }
-      if (!this.isWindows && fileExists(PATHS_CONFIG.shell.setup)) {
-        const { stdout } = await execAsync(
-          `bash "${PATHS_CONFIG.shell.setup}"`,
-          { cwd: this.repositoryPath, timeout: 300_000 }
-        );
-        return { success: true, message: "✅ Setup completato", output: stdout };
-      }
-
-      return {
-        success: false,
-        message: `❌ File setup non trovato in ${this.repositoryPath}`,
-        error: `Cercato: ${setupScript}`,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        message: "❌ Errore durante il setup",
-        error: error.message,
-      };
-    }
+    return {
+      running,
+      uptime: `${Math.floor(uptimeMinutes / 60)}h ${uptimeMinutes % 60}m`,
+      tradesCount: Array.isArray(trades) ? trades.length : 0,
+      portfolioValue: Number(metrics?.portfolioValue ?? 10000),
+      totalReturn: Number(metrics?.totalReturn ?? 0),
+      winRate: Number(metrics?.winRate ?? 0),
+    };
   }
 
-  // ── Avvia bot ──────────────────────────────────────────────────────────
-  async startBot(): Promise<BotExecutionResult> {
-    if (this.botProcess) {
-      return { success: false, message: "⚠️ Bot già in esecuzione" };
-    }
+  private resetRunningState() {
+    this.botProcess = null;
+    this.startTime = null;
+    stopDataPolling();
+    broadcastBotStatus(this.getBroadcastStatus(false));
+  }
 
+  private async executeScript(
+    command: string,
+    args: string[],
+    executedPath: string,
+    timeoutMs: number,
+    successMessage: string,
+    failureMessage: string
+  ): Promise<BotExecutionResult> {
     try {
-      console.log(`[BotExecutor] Avvio bot: ${this.repositoryPath}`);
-      ensureDataDir();
-
-      const pythonCmd = getPythonCommand();
-      let command = "";
-      let args: string[] = [];
-      let executedPath = "";
-
-      if (fileExists(PATHS_CONFIG.python.runBot)) {
-        command = pythonCmd;
-        args = [PATHS_CONFIG.python.runBot];
-        executedPath = PATHS_CONFIG.python.runBot;
-      } else if (this.isWindows && fileExists(PATHS_CONFIG.batch.runBot)) {
-        command = "cmd";
-        args = ["/c", PATHS_CONFIG.batch.runBot];
-        executedPath = PATHS_CONFIG.batch.runBot;
-      } else if (!this.isWindows && fileExists(PATHS_CONFIG.shell.runBot)) {
-        command = "bash";
-        args = [PATHS_CONFIG.shell.runBot];
-        executedPath = PATHS_CONFIG.shell.runBot;
-      } else {
-        return {
-          success: false,
-          message: `❌ Script bot non trovato in ${this.repositoryPath}`,
-          error: `Cercato: ${PATHS_CONFIG.python.runBot}`,
-        };
-      }
-
-      this.botProcess = spawn(command, args, {
-        cwd: this.repositoryPath,
-        env: { ...process.env, DATA_DIR: PATHS_CONFIG.folders.data },
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-
-      this.startTime = Date.now();
-
-      // Logga stdout del bot
-      this.botProcess.stdout?.on("data", (data) => {
-        process.stdout.write(`[Bot] ${data}`);
-      });
-      this.botProcess.stderr?.on("data", (data) => {
-        process.stderr.write(`[Bot ERR] ${data}`);
-      });
-
-      this.botProcess.on("exit", (code) => {
-        console.log(`[BotExecutor] Bot uscito con codice: ${code}`);
-        this.botProcess = null;
-        this.startTime = null;
-        stopDataPolling();
-        broadcastBotStatus({
-          running: false,
-          uptime: "0h 0m",
-          tradesCount: 0,
-          portfolioValue: 10000,
-          totalReturn: 0,
-          winRate: 0,
-        });
-      });
-
-      // Avvia polling file JSON → WebSocket
-      startDataPolling();
-
-      broadcastBotStatus({
-        running: true,
-        uptime: "0h 0m",
-        tradesCount: 0,
-        portfolioValue: 10000,
-        totalReturn: 0,
-        winRate: 0,
-      });
+      ensureRuntimeDirectories();
+      const { stdout, stderr } = await execAsync(
+        `"${command}" ${args.map((arg) => `"${arg}"`).join(" ")}`,
+        {
+          cwd: this.repositoryPath,
+          env: {
+            ...process.env,
+            DATA_DIR: PATHS_CONFIG.folders.data,
+          },
+          timeout: timeoutMs,
+        }
+      );
 
       return {
         success: true,
-        message: "🚀 Bot avviato con successo",
+        message: successMessage,
+        output: stdout || stderr,
         executedPath,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Errore sconosciuto";
       return {
         success: false,
-        message: "❌ Errore durante l'avvio del bot",
-        error: error.message,
+        message: failureMessage,
+        error: message,
+        executedPath,
       };
     }
   }
 
-  // ── Ferma bot ──────────────────────────────────────────────────────────
+  private resolveScriptPaths(scriptType: "setup" | "runBot" | "backtest" | "dashboard") {
+    return {
+      python: PATHS_CONFIG.python[scriptType],
+      batch: PATHS_CONFIG.batch[scriptType],
+      shell: PATHS_CONFIG.shell[scriptType],
+    };
+  }
+
+  async runSetup(): Promise<BotExecutionResult> {
+    console.log(`[BotExecutor] Setup in ${this.repositoryPath}`);
+
+    const paths = this.resolveScriptPaths("setup");
+    const pythonCmd = getPythonCommand();
+
+    if (fileExists(paths.python)) {
+      return this.executeScript(
+        pythonCmd,
+        [paths.python],
+        paths.python,
+        300_000,
+        "Setup completato con successo.",
+        "Errore durante il setup."
+      );
+    }
+
+    if (this.isWindows && fileExists(paths.batch)) {
+      return this.executeScript(
+        "cmd",
+        ["/c", paths.batch],
+        paths.batch,
+        300_000,
+        "Setup completato con successo.",
+        "Errore durante il setup."
+      );
+    }
+
+    if (!this.isWindows && fileExists(paths.shell)) {
+      return this.executeScript(
+        "bash",
+        [paths.shell],
+        paths.shell,
+        300_000,
+        "Setup completato con successo.",
+        "Errore durante il setup."
+      );
+    }
+
+    return {
+      success: false,
+      message: "File di setup non trovato.",
+      error: `Percorso atteso: ${paths.python}`,
+    };
+  }
+
+  async startBot(): Promise<BotExecutionResult> {
+    if (this.botProcess) {
+      return {
+        success: false,
+        message: "Il bot risulta gia in esecuzione.",
+      };
+    }
+
+    ensureRuntimeDirectories();
+
+    const paths = this.resolveScriptPaths("runBot");
+    const pythonCmd = getPythonCommand();
+    let command = "";
+    let args: string[] = [];
+    let executedPath = "";
+
+    if (fileExists(paths.python)) {
+      command = pythonCmd;
+      args = [paths.python];
+      executedPath = paths.python;
+    } else if (this.isWindows && fileExists(paths.batch)) {
+      command = "cmd";
+      args = ["/c", paths.batch];
+      executedPath = paths.batch;
+    } else if (!this.isWindows && fileExists(paths.shell)) {
+      command = "bash";
+      args = [paths.shell];
+      executedPath = paths.shell;
+    } else {
+      return {
+        success: false,
+        message: "Script del bot non trovato.",
+        error: `Percorso atteso: ${paths.python}`,
+      };
+    }
+
+    try {
+      const processRef = spawn(command, args, {
+        cwd: this.repositoryPath,
+        env: {
+          ...process.env,
+          DATA_DIR: PATHS_CONFIG.folders.data,
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      this.botProcess = processRef;
+
+      const stdoutBuffer: string[] = [];
+      const stderrBuffer: string[] = [];
+
+      processRef.stdout?.on("data", (chunk) => {
+        const text = chunk.toString();
+        stdoutBuffer.push(text);
+        process.stdout.write(`[Bot] ${text}`);
+      });
+
+      processRef.stderr?.on("data", (chunk) => {
+        const text = chunk.toString();
+        stderrBuffer.push(text);
+        process.stderr.write(`[Bot ERR] ${text}`);
+      });
+
+      return await new Promise<BotExecutionResult>((resolve) => {
+        let started = false;
+
+        const startupTimer = setTimeout(() => {
+          started = true;
+          this.startTime = Date.now();
+          startDataPolling();
+          broadcastBotStatus(this.getBroadcastStatus(true));
+
+          resolve({
+            success: true,
+            message: "Bot avviato con successo.",
+            executedPath,
+            output: stdoutBuffer.join(""),
+          });
+        }, 1500);
+
+        processRef.once("error", (error) => {
+          clearTimeout(startupTimer);
+          if (started) {
+            return;
+          }
+
+          this.resetRunningState();
+          resolve({
+            success: false,
+            message: "Errore durante l'avvio del bot.",
+            error: error.message,
+            executedPath,
+          });
+        });
+
+        processRef.once("exit", (code) => {
+          clearTimeout(startupTimer);
+          const output = stderrBuffer.join("").trim() || stdoutBuffer.join("").trim();
+
+          if (!started) {
+            this.resetRunningState();
+            resolve({
+              success: false,
+              message: "Il bot si e chiuso subito dopo l'avvio.",
+              error: output || `Processo terminato con codice ${code ?? "sconosciuto"}`,
+              executedPath,
+            });
+            return;
+          }
+
+          console.log(`[BotExecutor] Bot terminato con codice ${code}`);
+          this.resetRunningState();
+        });
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Errore sconosciuto";
+      this.resetRunningState();
+      return {
+        success: false,
+        message: "Errore durante l'avvio del bot.",
+        error: message,
+        executedPath,
+      };
+    }
+  }
+
   async stopBot(): Promise<BotExecutionResult> {
     if (!this.botProcess) {
-      return { success: false, message: "⚠️ Bot non in esecuzione" };
-    }
-    try {
-      this.botProcess.kill("SIGTERM");
-      this.botProcess = null;
-      this.startTime = null;
-      stopDataPolling();
-      broadcastBotStatus({
-        running: false,
-        uptime: "0h 0m",
-        tradesCount: 0,
-        portfolioValue: 10000,
-        totalReturn: 0,
-        winRate: 0,
-      });
-      return { success: true, message: "⏹️ Bot fermato con successo" };
-    } catch (error: any) {
       return {
         success: false,
-        message: "❌ Errore durante l'arresto del bot",
-        error: error.message,
+        message: "Il bot non e in esecuzione.",
+      };
+    }
+
+    try {
+      if (this.isWindows && this.botProcess.pid) {
+        await execAsync(`taskkill /pid ${this.botProcess.pid} /t /f`);
+      } else {
+        this.botProcess.kill("SIGTERM");
+      }
+
+      this.resetRunningState();
+
+      return {
+        success: true,
+        message: "Bot fermato con successo.",
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Errore sconosciuto";
+      return {
+        success: false,
+        message: "Errore durante l'arresto del bot.",
+        error: message,
       };
     }
   }
 
-  // ── Backtest ───────────────────────────────────────────────────────────
   async runBacktest(): Promise<BotExecutionResult> {
-    try {
-      console.log(`[BotExecutor] Backtest: ${this.repositoryPath}`);
-      ensureDataDir();
+    console.log(`[BotExecutor] Backtest in ${this.repositoryPath}`);
 
-      const pythonCmd = getPythonCommand();
-      const backtestScript = PATHS_CONFIG.python.backtest;
+    const paths = this.resolveScriptPaths("backtest");
+    const pythonCmd = getPythonCommand();
 
-      if (fileExists(backtestScript)) {
-        const { stdout } = await execAsync(
-          `"${pythonCmd}" "${backtestScript}"`,
-          { cwd: this.repositoryPath, timeout: 600_000 }
-        );
-        return {
-          success: true,
-          message: "✅ Backtesting completato",
-          output: stdout,
-          executedPath: backtestScript,
-        };
-      }
-
-      return {
-        success: false,
-        message: `❌ Script backtest non trovato`,
-        error: `Cercato: ${backtestScript}`,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        message: "❌ Errore durante il backtest",
-        error: error.message,
-      };
+    if (fileExists(paths.python)) {
+      return this.executeScript(
+        pythonCmd,
+        [paths.python],
+        paths.python,
+        600_000,
+        "Backtest completato.",
+        "Errore durante il backtest."
+      );
     }
+
+    if (!this.isWindows && fileExists(paths.shell)) {
+      return this.executeScript(
+        "bash",
+        [paths.shell],
+        paths.shell,
+        600_000,
+        "Backtest completato.",
+        "Errore durante il backtest."
+      );
+    }
+
+    if (this.isWindows && fileExists(paths.batch)) {
+      return this.executeScript(
+        "cmd",
+        ["/c", paths.batch],
+        paths.batch,
+        600_000,
+        "Backtest completato.",
+        "Errore durante il backtest."
+      );
+    }
+
+    return {
+      success: false,
+      message: "Script di backtest non trovato.",
+      error: `Percorso atteso: ${paths.python}`,
+    };
   }
 
-  // ── Dashboard ──────────────────────────────────────────────────────────
   async startDashboard(): Promise<BotExecutionResult> {
-    try {
-      const dashboardScript = PATHS_CONFIG.python.dashboard;
-      const pythonCmd = getPythonCommand();
+    const paths = this.resolveScriptPaths("dashboard");
+    const pythonCmd = getPythonCommand();
 
-      if (fileExists(dashboardScript)) {
-        const { stdout } = await execAsync(
-          `"${pythonCmd}" "${dashboardScript}"`,
-          { cwd: this.repositoryPath, timeout: 300_000 }
-        );
-        return { success: true, message: "✅ Dashboard avviata", output: stdout };
-      }
-
-      return {
-        success: false,
-        message: "❌ File dashboard non trovato",
-        error: `Cercato: ${dashboardScript}`,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        message: "❌ Errore avvio dashboard",
-        error: error.message,
-      };
+    if (fileExists(paths.python)) {
+      return this.executeScript(
+        pythonCmd,
+        [paths.python],
+        paths.python,
+        120_000,
+        "Dashboard Python avviata.",
+        "Errore durante l'avvio della dashboard."
+      );
     }
+
+    return {
+      success: true,
+      message: "Dashboard web disponibile su /dashboard.",
+      output: "Apri la dashboard React dal percorso /dashboard.",
+    };
   }
 
-  // ── Status ─────────────────────────────────────────────────────────────
   getStatus() {
-    const uptime = this.startTime
+    const uptimeMinutes = this.startTime
       ? Math.floor((Date.now() - this.startTime) / 60_000)
       : 0;
-    const hours = Math.floor(uptime / 60);
-    const minutes = uptime % 60;
+
     return {
-      running: !!this.botProcess,
-      uptime: `${hours}h ${minutes}m`,
+      running: Boolean(this.botProcess),
+      uptime: `${Math.floor(uptimeMinutes / 60)}h ${uptimeMinutes % 60}m`,
       startTime: this.startTime,
     };
   }
 
-  getRepositoryPath(): string {
+  getRepositoryPath() {
     return this.repositoryPath;
   }
 
-  repositoryExists(): boolean {
-    return fs.existsSync(this.repositoryPath);
+  repositoryExists() {
+    return (
+      fs.existsSync(this.repositoryPath) &&
+      fs.existsSync(PATHS_CONFIG.folders.botAi)
+    );
   }
 
-  getRepositoryFiles(): string[] {
+  getRepositoryFiles() {
     try {
-      if (!this.repositoryExists()) return [];
-      return fs.readdirSync(this.repositoryPath);
+      if (!this.repositoryExists()) {
+        return [];
+      }
+
+      return fs
+        .readdirSync(this.repositoryPath)
+        .filter((entry) => entry !== "node_modules")
+        .sort();
     } catch {
       return [];
     }
   }
 }
 
-// Singleton
 let executorInstance: BotExecutor | null = null;
 
-export function getBotExecutor(): BotExecutor {
-  if (!executorInstance) executorInstance = new BotExecutor();
+export function getBotExecutor() {
+  if (!executorInstance) {
+    executorInstance = new BotExecutor();
+  }
+
   return executorInstance;
 }
 

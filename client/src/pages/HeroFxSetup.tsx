@@ -1,150 +1,178 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Server, Shield, Activity, Clock, Zap, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
+import {
+  Activity,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Server,
+  Shield,
+  Zap,
+} from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-
-/**
- * HeroFx Setup Page
- * Gestione account MT5 e parametri di trading
- * 
- * NOTA: Questa pagina è collegata al backend tramite tRPC
- * I dati reali vengono recuperati da server/routers/herofx.ts
- */
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function HeroFxSetup() {
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Query per lo stato della connessione (quando disponibile)
-  // const { data: status } = trpc.herofx.status.useQuery();
-  // const connectMutation = trpc.herofx.connect.useMutation();
-  // const disconnectMutation = trpc.herofx.disconnect.useMutation();
+  const [isBusy, setIsBusy] = useState(false);
+  const statusQuery = trpc.herofx.status.useQuery(undefined, {
+    refetchInterval: 5000,
+  });
+  const accountInfoQuery = trpc.herofx.getAccountInfo.useQuery(undefined, {
+    enabled: statusQuery.data?.isConnected === true,
+    retry: false,
+  });
 
-  const handleConnect = async () => {
-    setIsLoading(true);
-    try {
-      toast.loading("Connessione a HeroFx-Trade...");
-      
-      // Connessione reale tramite tRPC backend
-      // const result = await connectMutation.mutateAsync();
-      // if (result.success) {
-      //   toast.success("✅ Connesso con successo!");
-      // } else {
-      //   toast.error("❌ Errore di connessione: " + result.error);
-      // }
-      
-      // Per ora simula la connessione
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      toast.success("✅ Connesso con successo all'account 923721!");
-    } catch (error: any) {
-      toast.error("❌ Errore di connessione: " + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const connectMutation = trpc.herofx.connect.useMutation();
+  const disconnectMutation = trpc.herofx.disconnect.useMutation();
 
-  const handleDisconnect = async () => {
-    setIsLoading(true);
+  const isConnected = statusQuery.data?.isConnected ?? false;
+  const accountInfo = accountInfoQuery.data;
+
+  async function handleConnect() {
+    setIsBusy(true);
+    const notificationId = toast.loading("Connessione a HeroFx in corso...");
+
     try {
-      toast.loading("Disconnessione...");
-      
-      // Disconnessione reale tramite tRPC backend
-      // const result = await disconnectMutation.mutateAsync();
-      // if (result.success) {
-      //   toast.success("✅ Disconnesso!");
-      // }
-      
-      // Per ora simula la disconnessione
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success("✅ Disconnesso!");
-    } catch (error: any) {
-      toast.error("❌ Errore durante la disconnessione: " + error.message);
+      const result = await connectMutation.mutateAsync();
+      if (result.success) {
+        toast.success(result.message, { id: notificationId });
+        await Promise.all([statusQuery.refetch(), accountInfoQuery.refetch()]);
+      } else {
+        toast.error(result.message, { id: notificationId });
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Errore di connessione";
+      toast.error(message, { id: notificationId });
     } finally {
-      setIsLoading(false);
+      setIsBusy(false);
     }
-  };
+  }
+
+  async function handleDisconnect() {
+    setIsBusy(true);
+    const notificationId = toast.loading("Disconnessione in corso...");
+
+    try {
+      const result = await disconnectMutation.mutateAsync();
+      toast.success(result.message, { id: notificationId });
+      await statusQuery.refetch();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Errore di disconnessione";
+      toast.error(message, { id: notificationId });
+    } finally {
+      setIsBusy(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-slate-50 p-6 dark:bg-slate-900">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold">Configurazione HeroFx</h1>
-            <p className="text-muted-foreground">Gestione account MT5 e parametri di trading</p>
+            <p className="text-muted-foreground">
+              Gestione account MT5 e parametri di trading del bot.
+            </p>
           </div>
-          <Badge variant="secondary" className="text-sm px-3 py-1">
-            🔴 Disconnesso
+
+          <Badge className="px-3 py-1 text-sm" variant={isConnected ? "default" : "secondary"}>
+            {isConnected ? "Connesso" : "Disconnesso"}
           </Badge>
         </div>
 
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Nota:</strong> Questa pagina mostra la configurazione dell'account. Per connettere il bot reale a MT5, assicurati che MetaTrader 5 sia installato e che le credenziali siano corrette nel file <code className="bg-muted px-2 py-1 rounded text-xs">server/config/herofx.config.ts</code>
+            Le credenziali reali non devono stare nel codice. Configurale tramite file <code className="rounded bg-muted px-2 py-1 text-xs">.env</code> o variabili ambiente: <code className="rounded bg-muted px-2 py-1 text-xs">HEROFX_LOGIN</code>, <code className="rounded bg-muted px-2 py-1 text-xs">HEROFX_PASSWORD</code>, <code className="rounded bg-muted px-2 py-1 text-xs">HEROFX_SERVER</code>.
           </AlertDescription>
         </Alert>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Connection Status */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <Card className="md:col-span-1">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <Shield className="h-5 w-5" />
-                Stato Connessione
+                Stato connessione
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-col items-center justify-center py-6 space-y-4 border-2 border-dashed rounded-lg">
-                <AlertCircle className="h-12 w-12 text-yellow-500" />
-                <div className="text-center">
-                  <p className="font-bold">Non Connesso</p>
-                  <p className="text-xs text-muted-foreground">Pronto per il login</p>
+              <div className="flex flex-col items-center justify-center space-y-4 rounded-lg border-2 border-dashed py-6 text-center">
+                {isConnected ? (
+                  <CheckCircle2 className="h-12 w-12 text-green-500" />
+                ) : (
+                  <AlertCircle className="h-12 w-12 text-yellow-500" />
+                )}
+
+                <div>
+                  <p className="font-bold">{isConnected ? "Connesso" : "Non connesso"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {statusQuery.data?.status ?? "Verifica stato in corso"}
+                  </p>
                 </div>
-                <Button className="w-full" onClick={handleConnect} disabled={isLoading}>
-                  Connetti Ora
-                </Button>
+
+                {isConnected ? (
+                  <Button className="w-full" disabled={isBusy} onClick={handleDisconnect} variant="outline">
+                    Disconnetti
+                  </Button>
+                ) : (
+                  <Button className="w-full" disabled={isBusy} onClick={handleConnect}>
+                    Connetti ora
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Account Info */}
           <Card className="md:col-span-2">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <Server className="h-5 w-5" />
-                Dettagli Account
+                Dettagli account
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-1">
                   <Label className="text-muted-foreground">Login ID</Label>
-                  <p className="text-xl font-mono font-bold">923721</p>
+                  <p className="text-xl font-mono font-bold">
+                    {accountInfo?.login ?? 923721}
+                  </p>
                 </div>
+
                 <div className="space-y-1">
-                  <Label className="text-muted-foreground">Server Broker</Label>
+                  <Label className="text-muted-foreground">Server broker</Label>
                   <p className="text-xl font-bold">HeroFx-Trade</p>
                 </div>
+
                 <div className="space-y-1">
-                  <Label className="text-muted-foreground">Tipo Account</Label>
-                  <Badge variant="outline">DEMO</Badge>
+                  <Label className="text-muted-foreground">Balance</Label>
+                  <p className="text-xl font-bold">
+                    ${Number(accountInfo?.balance ?? 10000).toFixed(2)}
+                  </p>
                 </div>
+
                 <div className="space-y-1">
-                  <Label className="text-muted-foreground">Simbolo Trading</Label>
+                  <Label className="text-muted-foreground">Equity</Label>
+                  <p className="text-xl font-bold">
+                    ${Number(accountInfo?.equity ?? 10000).toFixed(2)}
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground">Simbolo</Label>
                   <p className="text-xl font-bold text-blue-600">XAUUSD.r</p>
                 </div>
+
                 <div className="space-y-1">
-                  <Label className="text-muted-foreground">Leva</Label>
-                  <p className="text-xl font-bold">1:100</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-muted-foreground">Operatività</Label>
+                  <Label className="text-muted-foreground">Operativita</Label>
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-blue-500" />
                     <p className="text-xl font-bold">H23 (5/7)</p>
@@ -157,72 +185,69 @@ export default function HeroFxSetup() {
 
         <Tabs defaultValue="trading" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="trading">Parametri Trading</TabsTrigger>
-            <TabsTrigger value="risk">Gestione Rischio</TabsTrigger>
+            <TabsTrigger value="trading">Parametri trading</TabsTrigger>
+            <TabsTrigger value="risk">Gestione rischio</TabsTrigger>
           </TabsList>
-          
-          <TabsContent value="trading" className="space-y-4 mt-4">
+
+          <TabsContent className="mt-4 space-y-4" value="trading">
             <Card>
-              <CardContent className="pt-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <CardContent className="space-y-4 pt-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Lotto Default</Label>
-                    <Input type="number" defaultValue="0.10" disabled />
+                    <Label>Lotto default</Label>
+                    <Input defaultValue="0.10" disabled type="number" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Min Lot Size</Label>
-                    <Input type="number" defaultValue="0.01" disabled />
+                    <Label>Min lot size</Label>
+                    <Input defaultValue="0.01" disabled type="number" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Stop Loss (Points)</Label>
-                    <Input type="number" defaultValue="20" disabled />
+                    <Label>Stop loss (points)</Label>
+                    <Input defaultValue="20" disabled type="number" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Take Profit (Points)</Label>
-                    <Input type="number" defaultValue="40" disabled />
+                    <Label>Take profit (points)</Label>
+                    <Input defaultValue="40" disabled type="number" />
                   </div>
                 </div>
+
                 <Alert>
                   <Zap className="h-4 w-4" />
                   <AlertDescription>
-                    Questi parametri sono ottimizzati per il trading sull'oro (XAUUSD.r) con operatività H23.
+                    Questi parametri sono allineati al bot Python e al pannello principale.
                   </AlertDescription>
                 </Alert>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="risk" className="space-y-4 mt-4">
+          <TabsContent className="mt-4 space-y-4" value="risk">
             <Card>
-              <CardContent className="pt-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <CardContent className="space-y-4 pt-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Max Daily Loss ($)</Label>
-                    <Input type="number" defaultValue="100" disabled />
+                    <Label>Max daily loss ($)</Label>
+                    <Input defaultValue="100" disabled type="number" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Max Open Positions</Label>
-                    <Input type="number" defaultValue="5" disabled />
+                    <Label>Max open positions</Label>
+                    <Input defaultValue="5" disabled type="number" />
                   </div>
                 </div>
-                <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <h4 className="font-bold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
+
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
+                  <h4 className="mb-2 flex items-center gap-2 font-bold text-blue-800 dark:text-blue-200">
                     <Activity className="h-4 w-4" />
-                    Strategia di Protezione
+                    Strategia di protezione
                   </h4>
                   <p className="text-sm text-blue-700 dark:text-blue-300">
-                    Il bot monitora costantemente l'equity dell'account. Se la perdita giornaliera supera i $100, tutte le posizioni vengono chiuse e il bot si ferma fino al giorno successivo.
+                    Quando la perdita giornaliera supera il limite, il bot smette di aprire nuove posizioni e registra lo stop nelle metriche.
                   </p>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-
-        <div className="flex justify-end gap-4">
-          <Button variant="outline" onClick={() => window.history.back()}>Indietro</Button>
-          <Button disabled>Salva Modifiche</Button>
-        </div>
       </div>
     </div>
   );
