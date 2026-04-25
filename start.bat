@@ -7,58 +7,54 @@ echo   Trading Bot Project - Avvio Unificato
 echo  ==========================================
 echo.
 
-:: Vai nella cartella del progetto
+:: Entra nella directory del file bat
 cd /d "%~dp0"
 
 :: Controlla node
 where node >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERRORE] Node.js non trovato! Installa da https://nodejs.org
+    echo [ERRORE] Node.js non trovato!
+    echo Scarica da: https://nodejs.org
     pause & exit /b 1
 )
 
 :: Controlla python (non bloccante)
 where python >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [AVVISO] Python non trovato - il bot girera' in modalita' simulazione
-)
-
-:: Scegli package manager
-where pnpm >nul 2>&1
 if %errorlevel% equ 0 (
-    set PKG=pnpm
-    set INSTALL_FLAGS=install
+    echo [INFO] Python trovato - connessione MT5 disponibile
 ) else (
-    set PKG=npm
-    set INSTALL_FLAGS=install --legacy-peer-deps
+    echo [AVVISO] Python non trovato - il bot usera' la modalita' simulazione
 )
-echo [INFO] Package manager: %PKG%
 
-:: Installa dipendenze
 echo.
 echo [1/3] Installazione dipendenze...
-%PKG% %INSTALL_FLAGS%
-if %errorlevel% neq 0 (
-    echo [ERRORE] Installazione dipendenze fallita
-    pause & exit /b 1
+if exist node_modules (
+    echo       node_modules esistente, skip install
+) else (
+    call npm install --legacy-peer-deps
+    if %errorlevel% neq 0 (
+        echo [ERRORE] npm install fallito
+        pause & exit /b 1
+    )
 )
 
-:: Build
 echo.
 echo [2/3] Compilazione...
-%PKG% run build
+call npm run build
 if %errorlevel% neq 0 (
     echo [ERRORE] Build fallita
     pause & exit /b 1
 )
 
-:: Avvia server
 echo.
 echo [3/3] Avvio server...
 echo.
-echo  Il sito e' disponibile su: http://localhost:3000
-echo  Premi Ctrl+C per fermare il server
+echo  ==========================================
+echo   Apri il browser su: http://localhost:3000
+echo   Premi Ctrl+C per fermare
+echo  ==========================================
 echo.
+
 set NODE_ENV=production
 node dist\index.cjs
 
