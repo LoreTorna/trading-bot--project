@@ -1,13 +1,12 @@
 import express from "express";
 import { createServer } from "http";
 import path from "path";
-import { fileURLToPath } from "url";
 import * as trpcExpress from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { initWebSocket } from "./_core/websocket";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// In CJS (compiled by esbuild --format=cjs), __dirname is available as a global
+declare const __dirname: string;
 
 async function startServer() {
   const app = express();
