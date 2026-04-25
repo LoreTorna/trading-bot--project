@@ -1,176 +1,128 @@
-import path from "path";
-import os from "os";
+import nodePath from "path";
+import fs from "fs";
 
 /**
  * Configurazione percorsi per il repository GitHub
  * Supporta sia Windows che Linux/Mac
+ * process.cwd() è il metodo più affidabile quando si lancia da dentro la cartella del progetto
  */
 
-// Determina il percorso in base al sistema operativo e all'ambiente
 const getRepositoryPath = (): string => {
-  // Prova prima le variabili d'ambiente
-  if (process.env.REPO_PATH) {
+  // 1. Variabile d'ambiente esplicita (massima priorità)
+  if (process.env.REPO_PATH && fs.existsSync(process.env.REPO_PATH)) {
     return process.env.REPO_PATH;
   }
-  
+
+  // 2. Directory corrente — caso più comune: node dist/index.cjs lanciato dalla root del progetto
+  if (fs.existsSync(nodePath.join(process.cwd(), "trading-bot-ai"))) {
+    return process.cwd();
+  }
+
   if (process.platform === "win32") {
-    // Windows: percorsi comuni
-    const possiblePaths = [
+    const candidates = [
+      "C:\\Users\\loren\\OneDrive\\Desktop\\TRADE\\TRADING-AI-BOT-CLAUDE+MANUS\\trading-bot--project-main",
       "C:\\Users\\loren\\OneDrive\\Desktop\\TRADE\\newbotMANUS\\trading-bot--project",
       "C:\\Users\\loren\\Desktop\\trading-bot--project",
-      process.cwd() // Directory corrente
+      process.cwd(),
     ];
-    
-    // Ritorna il primo percorso che esiste
-    const fs = require('fs');
-    for (const path of possiblePaths) {
-      if (fs.existsSync(path)) {
-        return path;
-      }
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return p;
     }
-    
-    // Se nessuno esiste, ritorna il primo
-    return possiblePaths[0];
+    return candidates[0];
   } else {
-    // Linux/Mac
-    const possiblePaths = [
+    const candidates = [
       "/home/ubuntu/trading-bot--project",
-      process.cwd()
+      process.cwd(),
     ];
-    
-    const fs = require('fs');
-    for (const path of possiblePaths) {
-      if (fs.existsSync(path)) {
-        return path;
-      }
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return p;
     }
-    
-    return possiblePaths[0];
+    return candidates[0];
   }
 };
 
+const repoRoot = getRepositoryPath();
+
 export const PATHS_CONFIG = {
-  // Percorso base del repository
-  repositoryRoot: getRepositoryPath(),
+  repositoryRoot: repoRoot,
 
-  // Percorsi dei file Python
   python: {
-    backtest: path.join(getRepositoryPath(), "trading-bot-ai", "backtest.py"),
-    runBot: path.join(getRepositoryPath(), "trading-bot-ai", "run_bot.py"),
-    setup: path.join(getRepositoryPath(), "trading-bot-ai", "setup.py"),
-    dashboard: path.join(getRepositoryPath(), "trading-bot-ai", "run_dashboard.py"),
+    backtest:  nodePath.join(repoRoot, "trading-bot-ai", "backtest.py"),
+    runBot:    nodePath.join(repoRoot, "trading-bot-ai", "run_bot.py"),
+    setup:     nodePath.join(repoRoot, "trading-bot-ai", "setup.py"),
+    dashboard: nodePath.join(repoRoot, "trading-bot-ai", "run_dashboard.py"),
   },
 
-  // Percorsi dei file batch (Windows)
   batch: {
-    setup: path.join(getRepositoryPath(), "setup.bat"),
-    runBot: path.join(getRepositoryPath(), "run_bot.bat"),
-    backtest: path.join(getRepositoryPath(), "backtest.bat"),
-    dashboard: path.join(getRepositoryPath(), "dashboard.bat"),
-    installDeps: path.join(getRepositoryPath(), "install_deps.bat"),
+    setup:       nodePath.join(repoRoot, "setup.bat"),
+    runBot:      nodePath.join(repoRoot, "run_bot.bat"),
+    backtest:    nodePath.join(repoRoot, "backtest.bat"),
+    dashboard:   nodePath.join(repoRoot, "dashboard.bat"),
+    installDeps: nodePath.join(repoRoot, "install_deps.bat"),
   },
 
-  // Percorsi dei file shell (Linux/Mac)
   shell: {
-    setup: path.join(getRepositoryPath(), "trading-bot-ai", "setup.sh"),
-    runBot: path.join(getRepositoryPath(), "trading-bot-ai", "run_bot.sh"),
-    backtest: path.join(getRepositoryPath(), "trading-bot-ai", "backtest.sh"),
-    dashboard: path.join(getRepositoryPath(), "trading-bot-ai", "dashboard.sh"),
+    setup:     nodePath.join(repoRoot, "trading-bot-ai", "setup.sh"),
+    runBot:    nodePath.join(repoRoot, "trading-bot-ai", "run_bot.sh"),
+    backtest:  nodePath.join(repoRoot, "trading-bot-ai", "backtest.sh"),
+    dashboard: nodePath.join(repoRoot, "trading-bot-ai", "dashboard.sh"),
   },
 
-  // Percorsi delle cartelle
   folders: {
-    core: path.join(getRepositoryPath(), "core"),
-    strategies: path.join(getRepositoryPath(), "strategies"),
-    config: path.join(getRepositoryPath(), "config"),
-    logs: path.join(getRepositoryPath(), "logs"),
-    data: path.join(getRepositoryPath(), "data"),
-    backtester: path.join(getRepositoryPath(), "backtester"),
-    botAi: path.join(getRepositoryPath(), "trading-bot-ai"),
+    core:       nodePath.join(repoRoot, "core"),
+    strategies: nodePath.join(repoRoot, "strategies"),
+    config:     nodePath.join(repoRoot, "config"),
+    logs:       nodePath.join(repoRoot, "logs"),
+    data:       nodePath.join(repoRoot, "data"),
+    backtester: nodePath.join(repoRoot, "backtester"),
+    botAi:      nodePath.join(repoRoot, "trading-bot-ai"),
   },
 
-  // Percorsi dei file di configurazione
   config: {
-    main: path.join(getRepositoryPath(), "config", "config.yaml"),
-    env: path.join(getRepositoryPath(), ".env"),
-    envExample: path.join(getRepositoryPath(), ".env.example"),
+    main:       nodePath.join(repoRoot, "config", "config.yaml"),
+    env:        nodePath.join(repoRoot, ".env"),
+    envExample: nodePath.join(repoRoot, ".env.example"),
   },
 
-  // Percorsi dei file di log
   logs: {
-    main: path.join(getRepositoryPath(), "logs", "bot.log"),
-    backtest: path.join(getRepositoryPath(), "logs", "backtest.log"),
-    setup: path.join(getRepositoryPath(), "logs", "setup.log"),
+    main:     nodePath.join(repoRoot, "logs", "bot.log"),
+    backtest: nodePath.join(repoRoot, "logs", "backtest.log"),
+    setup:    nodePath.join(repoRoot, "logs", "setup.log"),
   },
 
-  // Percorsi dei file di dati
   data: {
-    trades: path.join(getRepositoryPath(), "data", "trades.json"),
-    metrics: path.join(getRepositoryPath(), "data", "metrics.json"),
-    backtest: path.join(getRepositoryPath(), "data", "backtest_results.json"),
+    trades:   nodePath.join(repoRoot, "data", "trades.json"),
+    metrics:  nodePath.join(repoRoot, "data", "metrics.json"),
+    backtest: nodePath.join(repoRoot, "data", "backtest_results.json"),
   },
 };
 
 export type PathsConfig = typeof PATHS_CONFIG;
 
-/**
- * Funzione helper per ottenere il percorso di un file
- * @param fileType - Tipo di file (python, batch, shell, config, logs, data)
- * @param fileName - Nome del file
- * @returns Percorso completo del file
- */
+export function fileExists(filePath: string): boolean {
+  try {
+    return fs.existsSync(filePath);
+  } catch {
+    return false;
+  }
+}
+
+export function getPythonCommand(): string {
+  return process.platform === "win32" ? "python" : "python3";
+}
+
+export function getShellCommand(): string {
+  return process.platform === "win32" ? "cmd.exe" : "/bin/bash";
+}
+
 export function getFilePath(
   fileType: "python" | "batch" | "shell" | "config" | "logs" | "data",
   fileName: string
 ): string {
   const config = PATHS_CONFIG as any;
   const fileConfig = config[fileType];
-
-  if (!fileConfig) {
-    throw new Error(`Tipo di file non supportato: ${fileType}`);
-  }
-
-  return fileConfig[fileName] || path.join(getRepositoryPath(), fileName);
-}
-
-/**
- * Funzione helper per verificare se un file esiste
- */
-export function fileExists(filePath: string): boolean {
-  try {
-    const fs = require("fs");
-    return fs.existsSync(filePath);
-  } catch (error) {
-    return false;
-  }
-}
-
-/**
- * Funzione helper per ottenere il comando di esecuzione corretto
- * @returns Comando di esecuzione (python, python3, py, ecc.)
- */
-export function getPythonCommand(): string {
-  if (process.platform === "win32") {
-    // Windows: prova python, py, python3
-    return "python";
-  } else {
-    // Linux/Mac: prova python3, python
-    return "python3";
-  }
-}
-
-/**
- * Funzione helper per ottenere il comando shell corretto
- * @returns Comando shell (bash, sh, cmd, ecc.)
- */
-export function getShellCommand(): string {
-  if (process.platform === "win32") {
-    // Windows
-    return "cmd.exe";
-  } else {
-    // Linux/Mac
-    return "/bin/bash";
-  }
+  if (!fileConfig) throw new Error(`Tipo di file non supportato: ${fileType}`);
+  return fileConfig[fileName] || nodePath.join(repoRoot, fileName);
 }
 
 export default PATHS_CONFIG;
